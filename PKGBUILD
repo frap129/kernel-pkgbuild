@@ -1,26 +1,31 @@
-# Maintainer: Levente Polyak <anthraxx[at]archlinux[dot]org>
+# Maintainer: Joe Maples <joe@maples.dev>
+# Contributor: Levente Polyak <anthraxx[at]archlinux[dot]org>
 # Contributor: Daniel Micay <danielmicay@gmail.com>
 # Contributor: Tobias Powalowski <tpowa@archlinux.org>
 # Contributor: Thomas Baechler <thomas@archlinux.org>
 
-pkgbase=linux-hardened-git
+pkgbase=linux-xanmod-edge-tt-rog-hardened
 _srcname=${pkgbase/-git/}
-_gitbranch=5.15
-pkgver=5.15rc1.r1042776.g76ae1c63f2a4
+_gitbranch=5.16
+pkgver=5.16.11.r1060404.gb7a9f15bc280
 pkgrel=1
-pkgdesc='Security-Hardened Linux'
+pkgdesc='Security-Hardened Linux with Xanmod, TT Sched, and ROG patches'
 url='https://github.com/anthraxx/linux-hardened'
 arch=(x86_64)
 license=(GPL2)
 makedepends=(
   bc kmod libelf
-  xmlto python-sphinx python-sphinx_rtd_theme graphviz imagemagick
   git
 )
 options=('!strip')
 source=(
   "${_srcname}::git+https://github.com/anthraxx/linux-hardened#branch=${_gitbranch}?signed"
   config # the main kernel config files
+  linux-5.16.11.patch
+  xanmod.patch # Xanmod patch
+  tt.patch
+  fix-tt-build.patch
+  rog.patch
 )
 validpgpkeys=(
   'ABAF11C65A2970B130ABE3C479BE3E4300411886'  # Linus Torvalds
@@ -28,7 +33,13 @@ validpgpkeys=(
   'E240B57E2C4630BA768E2F26FC1B547C8D8172C8'  # Levente Polyak
 )
 sha256sums=('SKIP'
-            'a850533463b5e85b0ee15c94325643c4c626c7faa7ad1d13f9270f181253ac82')
+            '29d359b00088df54c477a7a0f84c8979a1b8a4d4abcc9639ac5e61110f970649'
+            '0eb2abe265702256c83858a8c27531d07226d71f24dd6ad66ecd9a095547bd4f'
+            '97fcda12d597a98578a0a4421f0819a7a757888fe86a291d4dd10dc567333b16'
+            '2528d7c98924ca883f99e642e406f4a7e53b207212a8c83527caf493273d38f3'
+            '26a74fbbda76e7765761a8437325626cf4b2fcdc231380b6af57866ed071c7a4'
+            'ce9b6ca13e93f6dba983c1167861baa1a2208c24d57a9a3a206f8cca18c7801e'
+)
 
 export KBUILD_BUILD_HOST=archlinux
 export KBUILD_BUILD_USER=$pkgbase
@@ -59,23 +70,26 @@ prepare() {
   for src in "${source[@]}"; do
     src="${src%%::*}"
     src="${src##*/}"
-    [[ $src = *.patch ]] || continue
-    echo "Applying patch $src..."
-    patch -Np1 < "../$src"
+    case "$src" in
+      *.patch|*.patch.xz|*.diff|*.diff.xz)
+        # Apply any other patches
+        msg2 "Applying patch ${src%\.xz} ..."
+        patch -Np1 -i "../${src%\.xz}"
+        ;;
+    esac
   done
 
   echo "Setting config..."
   cp ../config .config
-  make olddefconfig
+  make LLVM=1 LLVM_IAS=1 olddefconfig
 
-  make -s kernelrelease > version
+  make LLVM=1 LLVM_IAS=1 -s kernelrelease > version
   echo "Prepared $pkgbase version $(<version)"
 }
 
 build() {
   cd $_srcname
-  make all
-  make htmldocs
+  make LLVM=1 LLVM_IAS=1 all
 }
 
 _package() {
@@ -183,26 +197,7 @@ _package-headers() {
   ln -sr "$builddir" "$pkgdir/usr/src/$pkgbase"
 }
 
-_package-docs() {
-  pkgdesc="Documentation for the $pkgdesc kernel"
-
-  cd $_srcname
-  local builddir="$pkgdir/usr/lib/modules/$(<version)/build"
-
-  echo "Installing documentation..."
-  local src dst
-  while read -rd '' src; do
-    dst="${src#Documentation/}"
-    dst="$builddir/Documentation/${dst#output/}"
-    install -Dm644 "$src" "$dst"
-  done < <(find Documentation -name '.*' -prune -o ! -type d -print0)
-
-  echo "Adding symlink..."
-  mkdir -p "$pkgdir/usr/share/doc"
-  ln -sr "$builddir/Documentation" "$pkgdir/usr/share/doc/$pkgbase"
-}
-
-pkgname=(linux-hardened-git linux-hardened-headers-git linux-hardened-docs-git)
+pkgname=(linux-hardened-git linux-hardened-headers-git)
 for _p in "${pkgname[@]}"; do
   _p=${_p/-git/}
   eval "package_$_p-git() {

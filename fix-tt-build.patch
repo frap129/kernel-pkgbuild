@@ -1,0 +1,13 @@
+diff --git a/kernel/sched/bs_nohz.h b/kernel/sched/bs_nohz.h
+index cb075208d641..2665fcbf3474 100644
+--- a/kernel/sched/bs_nohz.h
++++ b/kernel/sched/bs_nohz.h
+@@ -948,7 +948,7 @@ static void nohz_try_pull_from_grq(void)
+  * run_rebalance_domains is triggered when needed from the scheduler tick.
+  * Also triggered for nohz idle balancing (with nohz_balancing_kick set).
+  */
+-static __latent_entropy void run_rebalance_domains(struct softirq_action *h)
++static __latent_entropy void run_rebalance_domains(void)
+ {
+ 	struct rq *this_rq = this_rq();
+ 	enum cpu_idle_type idle = this_rq->idle_balance ?
