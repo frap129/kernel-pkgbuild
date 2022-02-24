@@ -4,7 +4,34 @@
 # Contributor: Tobias Powalowski <tpowa@archlinux.org>
 # Contributor: Thomas Baechler <thomas@archlinux.org>
 
-pkgbase=linux-xanmod-edge-tt-rog-hardened
+## The following variables can be customized at build time
+##
+##  Usage:  env _microarchitecture=98 use_numa=n use_tracers=n makepkg -sc
+##     or:  makepkg -sc -- _microarchitecture=98 use_numa=n use_tracers=n
+##     or:  export use_numa=n use_tracers=n; makepkg -sc
+
+## Look inside 'choose-gcc-optimization.sh' to choose your microarchitecture
+## Valid numbers between: 0 to 99
+## Default is: 93 => x86-64-v3
+## Good option if your package is for one machine: 98 (Intel native) or 99 (AMD native)
+: "${_microarchitecture:=93}"
+
+## Compress modules by default (following Arch's kernel)
+## Set variable "_compress_modules" to: n to disable
+##                                      y to enable (default)
+: "${_compress_modules:=y}"
+
+# Compile ONLY used modules to VASTLY reduce the number of modules built
+# and the build time.
+#
+# To keep track of which modules are needed for your specific system/hardware,
+# give module_db script a try: https://aur.archlinux.org/packages/modprobed-db
+# This PKGBUILD read the database kept if it exists
+#
+# More at this wiki page ---> https://wiki.archlinux.org/index.php/Modprobed-db
+: "${_localmodcfg:=n}"
+
+pkgbase=linux-hardened-xanmod-tt-rog
 _srcname=${pkgbase/-git/}
 _gitbranch=5.16
 pkgver=5.16.11.r1060404.gb7a9f15bc280
@@ -15,12 +42,14 @@ arch=(x86_64)
 license=(GPL2)
 makedepends=(
   bc kmod libelf
+  clang llvm lld python
   git
 )
 options=('!strip')
 source=(
   "${_srcname}::git+https://github.com/anthraxx/linux-hardened#branch=${_gitbranch}?signed"
   config # the main kernel config files
+  choose-gcc-optimization.sh
   linux-5.16.11.patch
   xanmod.patch # Xanmod patch
   tt.patch
@@ -33,7 +62,8 @@ validpgpkeys=(
   'E240B57E2C4630BA768E2F26FC1B547C8D8172C8'  # Levente Polyak
 )
 sha256sums=('SKIP'
-            '29d359b00088df54c477a7a0f84c8979a1b8a4d4abcc9639ac5e61110f970649'
+            '924cfe3bd96dd7eca2d6f9c7be7e3c1adf7ad63e2b1c079dc1272dcea095b6e0'
+            '278118011d7a2eeca9971ac97b31bf0c55ab55e99c662ab9ae4717b55819c9a2'
             '0eb2abe265702256c83858a8c27531d07226d71f24dd6ad66ecd9a095547bd4f'
             '97fcda12d597a98578a0a4421f0819a7a757888fe86a291d4dd10dc567333b16'
             '2528d7c98924ca883f99e642e406f4a7e53b207212a8c83527caf493273d38f3'
@@ -59,7 +89,7 @@ pkgver() {
 prepare() {
   cd $_srcname
 
-  echo "Setting version..."
+  msg2 "Setting version..."
   rm -f localversion* include/config/kernel.release
   scripts/setlocalversion --save-scmversion
   echo "-$pkgrel" > localversion.10-pkgrel
@@ -79,17 +109,41 @@ prepare() {
     esac
   done
 
-  echo "Setting config..."
+  msg2 "Setting config..."
   cp ../config .config
-  make LLVM=1 LLVM_IAS=1 olddefconfig
 
-  make LLVM=1 LLVM_IAS=1 -s kernelrelease > version
-  echo "Prepared $pkgbase version $(<version)"
+  # Select microarchitecture optimization target
+  sh "${srcdir}/choose-gcc-optimization.sh" $_microarchitecture
+
+  # Compress modules
+  if [ "$_compress_modules" = "y" ]; then
+    scripts/config --disable CONFIG_MODULE_COMPRESS_NONE \
+                   --enable CONFIG_MODULE_COMPRESS_ZSTD
+  fi
+
+  ### Optionally load needed modules for the make localmodconfig
+  # See https://aur.archlinux.org/packages/modprobed-db
+  if [ "$_localmodcfg" = "y" ]; then
+    if [ -f "$HOME/.config/modprobed.db" ]; then
+      msg2 "Running Steven Rostedt's make localmodconfig now"
+      make LLVM=1 LSMOD="$HOME/.config/modprobed.db" localmodconfig
+    else
+      msg2 "No modprobed.db data found"
+      exit 1
+    fi
+  fi
+
+  msg2 "Finalizing kernel config..."
+  
+  make LLVM=1 olddefconfig
+
+  make LLVM=1 -s kernelrelease > version
+  msg2 "Prepared $pkgbase version $(<version)"
 }
 
 build() {
   cd $_srcname
-  make LLVM=1 LLVM_IAS=1 all
+  make LLVM=1 all
 }
 
 _package() {
@@ -104,7 +158,7 @@ _package() {
   local kernver="$(<version)"
   local modulesdir="$pkgdir/usr/lib/modules/$kernver"
 
-  echo "Installing boot image..."
+  msg2 "Installing boot image..."
   # systemd expects to find the kernel here to allow hibernation
   # https://github.com/systemd/systemd/commit/edda44605f06a41fb86b7ab8128dcf99161d2344
   install -Dm644 "$(make -s image_name)" "$modulesdir/vmlinuz"
@@ -112,8 +166,8 @@ _package() {
   # Used by mkinitcpio to name the kernel
   echo "$pkgbase" | install -Dm644 /dev/stdin "$modulesdir/pkgbase"
 
-  echo "Installing modules..."
-  make INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 modules_install
+  msg2 "Installing modules..."
+  make LLVM=1 INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 modules_install
 
   # remove build and source links
   rm "$modulesdir"/{source,build}
@@ -125,7 +179,7 @@ _package-headers() {
   cd $_srcname
   local builddir="$pkgdir/usr/lib/modules/$(<version)/build"
 
-  echo "Installing build files..."
+  msg2 "Installing build files..."
   install -Dt "$builddir" -m644 .config Makefile Module.symvers System.map \
     localversion.* version vmlinux
   install -Dt "$builddir/kernel" -m644 kernel/Makefile
@@ -138,7 +192,7 @@ _package-headers() {
   # add xfs and shmem for aufs building
   mkdir -p "$builddir"/{fs/xfs,mm}
 
-  echo "Installing headers..."
+  msg2 "Installing headers..."
   cp -t "$builddir" -a include
   cp -t "$builddir/arch/x86" -a arch/x86/include
   install -Dt "$builddir/arch/x86/kernel" -m644 arch/x86/kernel/asm-offsets.s
@@ -154,10 +208,10 @@ _package-headers() {
   install -Dt "$builddir/drivers/media/dvb-frontends" -m644 drivers/media/dvb-frontends/*.h
   install -Dt "$builddir/drivers/media/tuners" -m644 drivers/media/tuners/*.h
 
-  echo "Installing KConfig files..."
+  msg2 "Installing KConfig files..."
   find . -name 'Kconfig*' -exec install -Dm644 {} "$builddir/{}" \;
 
-  echo "Removing unneeded architectures..."
+  msg2 "Removing unneeded architectures..."
   local arch
   for arch in "$builddir"/arch/*/; do
     [[ $arch = */x86/ ]] && continue
@@ -165,16 +219,16 @@ _package-headers() {
     rm -r "$arch"
   done
 
-  echo "Removing documentation..."
+  msg2 "Removing documentation..."
   rm -r "$builddir/Documentation"
 
-  echo "Removing broken symlinks..."
+  msg2 "Removing broken symlinks..."
   find -L "$builddir" -type l -printf 'Removing %P\n' -delete
 
-  echo "Removing loose objects..."
+  msg2 "Removing loose objects..."
   find "$builddir" -type f -name '*.o' -printf 'Removing %P\n' -delete
 
-  echo "Stripping build tools..."
+  msg2 "Stripping build tools..."
   local file
   while read -rd '' file; do
     case "$(file -bi "$file")" in
@@ -189,21 +243,21 @@ _package-headers() {
     esac
   done < <(find "$builddir" -type f -perm -u+x ! -name vmlinux -print0)
 
-  echo "Stripping vmlinux..."
+  msg2 "Stripping vmlinux..."
   strip -v $STRIP_STATIC "$builddir/vmlinux"
 
-  echo "Adding symlink..."
+  msg2 "Adding symlink..."
   mkdir -p "$pkgdir/usr/src"
   ln -sr "$builddir" "$pkgdir/usr/src/$pkgbase"
 }
 
-pkgname=(linux-hardened-git linux-hardened-headers-git)
+pkgname=(linux-hardened-xanmod-tt-rog-git linux-hardened-xanmod-tt-rog-headers-git)
 for _p in "${pkgname[@]}"; do
   _p=${_p/-git/}
   eval "package_$_p-git() {
     provides=(${_p})
-    $(declare -f "_package${_p#linux-hardened}")
-    _package${_p#linux-hardened}
+    $(declare -f "_package${_p#linux-hardened-xanmod-tt-rog}")
+    _package${_p#linux-hardened-xanmod-tt-rog}
   }"
 done
 
