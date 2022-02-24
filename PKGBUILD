@@ -137,6 +137,11 @@ prepare() {
   
   make LLVM=1 olddefconfig
 
+
+  msg2 "Enabling CFI..."
+  scripts/config --disable CONFIG_CFI_CLANG \
+                     --enable CONFIG_CFI_CLANG_SHADOW
+
   make LLVM=1 -s kernelrelease > version
   msg2 "Prepared $pkgbase version $(<version)"
 }
