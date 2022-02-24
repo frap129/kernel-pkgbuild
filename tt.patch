@@ -6549,7 +6549,7 @@ index 000000000000..64fe6363641e
 +void post_init_entity_util_avg(struct task_struct *p) {}
 +#endif
 diff --git a/kernel/sysctl.c b/kernel/sysctl.c
-index ac4081a43522..afc74fa348a7 100644
+index 33517ea6f8f7..2f593fa92b06 100644
 --- a/kernel/sysctl.c
 +++ b/kernel/sysctl.c
 @@ -119,6 +119,11 @@

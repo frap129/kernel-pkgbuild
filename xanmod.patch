@@ -1,12 +1,12 @@
 diff --git a/CONFIGS/xanmod/clang/config b/CONFIGS/xanmod/clang/config
 new file mode 100644
-index 000000000000..25fba9d4a80a
+index 000000000000..87853c78fab6
 --- /dev/null
 +++ b/CONFIGS/xanmod/clang/config
-@@ -0,0 +1,11401 @@
+@@ -0,0 +1,11400 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
-+# Linux/x86 5.16.10 Kernel Configuration
++# Linux/x86 5.16.11 Kernel Configuration
 +#
 +CONFIG_CC_VERSION_TEXT="Debian clang version 12.0.1-16"
 +CONFIG_GCC_VERSION=0
@@ -3874,7 +3874,6 @@ index 000000000000..25fba9d4a80a
 +CONFIG_IWLDVM=m
 +CONFIG_IWLMVM=m
 +CONFIG_IWLWIFI_OPMODE_MODULAR=y
-+# CONFIG_IWLWIFI_BCAST_FILTERING is not set
 +
 +#
 +# Debugging Options
@@ -11407,13 +11406,13 @@ index 000000000000..25fba9d4a80a
 +# end of Kernel hacking
 diff --git a/CONFIGS/xanmod/gcc/config b/CONFIGS/xanmod/gcc/config
 new file mode 100644
-index 000000000000..c83766750f73
+index 000000000000..4995c901eef2
 --- /dev/null
 +++ b/CONFIGS/xanmod/gcc/config
-@@ -0,0 +1,11399 @@
+@@ -0,0 +1,11398 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
-+# Linux/x86 5.16.10 Kernel Configuration
++# Linux/x86 5.16.11 Kernel Configuration
 +#
 +CONFIG_CC_VERSION_TEXT="gcc-11 (Debian 11.2.0-12) 11.2.0"
 +CONFIG_CC_IS_GCC=y
@@ -15278,7 +15277,6 @@ index 000000000000..c83766750f73
 +CONFIG_IWLDVM=m
 +CONFIG_IWLMVM=m
 +CONFIG_IWLWIFI_OPMODE_MODULAR=y
-+# CONFIG_IWLWIFI_BCAST_FILTERING is not set
 +
 +#
 +# Debugging Options
@@ -23916,18 +23914,6 @@ index dd36acc87ce6..83614d717750 100644
  WINSYSTEMS EBC-C384 WATCHDOG DRIVER
  M:	William Breathitt Gray <vilhelm.gray@gmail.com>
  L:	linux-watchdog@vger.kernel.org
-diff --git a/Makefile b/Makefile
-index 00ba75768af7..27871ad64e61 100644
---- a/Makefile
-+++ b/Makefile
-@@ -758,6 +758,7 @@ ifdef CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
- KBUILD_CFLAGS += -O2
- else ifdef CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3
- KBUILD_CFLAGS += -O3
-+KBUILD_CFLAGS += $(call cc-option, -fno-tree-loop-vectorize)
- else ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
- KBUILD_CFLAGS += -Os
- endif
 diff --git a/arch/Kconfig b/arch/Kconfig
 index 4c9d19055de2..d4b2c5910644 100644
 --- a/arch/Kconfig
@@ -23948,6 +23934,23 @@ index 4c9d19055de2..d4b2c5910644 100644
  source "kernel/gcov/Kconfig"
  
  source "scripts/gcc-plugins/Kconfig"
+diff --git a/arch/arm64/boot/dts/amlogic/meson-gx.dtsi b/arch/arm64/boot/dts/amlogic/meson-gx.dtsi
+index aa14ea017a61..4d359995382b 100644
+--- a/arch/arm64/boot/dts/amlogic/meson-gx.dtsi
++++ b/arch/arm64/boot/dts/amlogic/meson-gx.dtsi
+@@ -55,6 +55,12 @@ secmon_reserved_bl32: secmon@5300000 {
+ 			no-map;
+ 		};
+ 
++		/* 32 MiB reserved for ARM Trusted Firmware (BL32) */
++		secmon_reserved_bl32: secmon@5300000 {
++			reg = <0x0 0x05300000 0x0 0x2000000>;
++			no-map;
++		};
++
+ 		linux,cma {
+ 			compatible = "shared-dma-pool";
+ 			reusable;
 diff --git a/arch/arm64/include/asm/cpufeature.h b/arch/arm64/include/asm/cpufeature.h
 index ef6be92b1921..99518b4b2a9e 100644
 --- a/arch/arm64/include/asm/cpufeature.h
@@ -23998,36 +24001,6 @@ index c4ba047a82d2..e736f47436c7 100644
  }
  #define arch_wants_old_prefaulted_pte	arch_wants_old_prefaulted_pte
  
-diff --git a/arch/arm64/kernel/cpufeature.c b/arch/arm64/kernel/cpufeature.c
-index d18b953c078d..12617099e283 100644
---- a/arch/arm64/kernel/cpufeature.c
-+++ b/arch/arm64/kernel/cpufeature.c
-@@ -2174,6 +2174,25 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
- 		.matches = has_hw_dbm,
- 		.cpu_enable = cpu_enable_hw_dbm,
- 	},
-+	{
-+		/*
-+		 * __cpu_setup always enables this capability. But if the boot
-+		 * CPU has it and a late CPU doesn't, the absent
-+		 * ARM64_CPUCAP_OPTIONAL_FOR_LATE_CPU will prevent this late CPU
-+		 * from going online. There is neither known hardware does that
-+		 * nor obvious reasons to design hardware works that way, hence
-+		 * no point leaving the door open here. If the need arises, a
-+		 * new weak system feature flag should do the trick.
-+		 */
-+		.desc = "Hardware update of the Access flag",
-+		.type = ARM64_CPUCAP_SYSTEM_FEATURE,
-+		.capability = ARM64_HW_AF,
-+		.sys_reg = SYS_ID_AA64MMFR1_EL1,
-+		.sign = FTR_UNSIGNED,
-+		.field_pos = ID_AA64MMFR1_HADBS_SHIFT,
-+		.min_field_value = 1,
-+		.matches = has_cpuid_feature,
-+	},
- #endif
- 	{
- 		.desc = "CRC32 instructions",
 diff --git a/arch/arm64/tools/cpucaps b/arch/arm64/tools/cpucaps
 index e7719e8f18de..78dc93a119f2 100644
 --- a/arch/arm64/tools/cpucaps
@@ -24684,6 +24657,40 @@ index 75884d2cdec3..4e6a08d4c7e5 100644
  #elif defined CONFIG_MELAN
  #define MODULE_PROC_FAMILY "ELAN "
  #elif defined CONFIG_MCRUSOE
+diff --git a/arch/x86/kvm/cpuid.c b/arch/x86/kvm/cpuid.c
+index bf18679757c7..308d3e3588a7 100644
+--- a/arch/x86/kvm/cpuid.c
++++ b/arch/x86/kvm/cpuid.c
+@@ -122,6 +122,29 @@ static int kvm_cpuid_check_equal(struct kvm_vcpu *vcpu, struct kvm_cpuid_entry2
+ 	return 0;
+ }
+ 
++/* Check whether the supplied CPUID data is equal to what is already set for the vCPU. */
++static int kvm_cpuid_check_equal(struct kvm_vcpu *vcpu, struct kvm_cpuid_entry2 *e2,
++				 int nent)
++{
++	struct kvm_cpuid_entry2 *orig;
++	int i;
++
++	if (nent != vcpu->arch.cpuid_nent)
++		return -EINVAL;
++
++	for (i = 0; i < nent; i++) {
++		orig = &vcpu->arch.cpuid_entries[i];
++		if (e2[i].function != orig->function ||
++		    e2[i].index != orig->index ||
++		    e2[i].flags != orig->flags ||
++		    e2[i].eax != orig->eax || e2[i].ebx != orig->ebx ||
++		    e2[i].ecx != orig->ecx || e2[i].edx != orig->edx)
++			return -EINVAL;
++	}
++
++	return 0;
++}
++
+ static void kvm_update_kvm_cpuid_base(struct kvm_vcpu *vcpu)
+ {
+ 	u32 function;
 diff --git a/arch/x86/lib/csum-partial_64.c b/arch/x86/lib/csum-partial_64.c
 index e7925d668b68..1eb8f2d11f7c 100644
 --- a/arch/x86/lib/csum-partial_64.c
@@ -25276,34 +25283,6 @@ index c9d3d0c99c25..b9d5ce8deca2 100644
 +
 +# binder-$(CONFIG_ANDROID_BINDER_IPC) := binder.o binder_alloc.o
 +# binder-$(CONFIG_ANDROID_BINDERFS) += binderfs.o
-diff --git a/drivers/android/binder.c b/drivers/android/binder.c
-index 99ae919255f4..0875afa9a899 100644
---- a/drivers/android/binder.c
-+++ b/drivers/android/binder.c
-@@ -6063,9 +6063,20 @@ static int __init binder_init(void)
- 	return ret;
- }
- 
--device_initcall(binder_init);
-+module_init(binder_init);
-+/*
-+ * binder will have no exit function since binderfs instances can be mounted
-+ * multiple times and also in user namespaces finding and destroying them all
-+ * is not feasible without introducing insane locking. Just ignoring existing
-+ * instances on module unload also wouldn't work since we would loose track of
-+ * what major numer was dynamically allocated and also what minor numbers are
-+ * already given out. So this would get us into all kinds of issues with device
-+ * number reuse. So simply don't allow unloading unless we are forced to do so.
-+ */
-+
-+MODULE_AUTHOR("Google, Inc.");
-+MODULE_DESCRIPTION("Driver for Android binder device");
-+MODULE_LICENSE("GPL v2");
- 
- #define CREATE_TRACE_POINTS
- #include "binder_trace.h"
--
--MODULE_LICENSE("GPL v2");
 diff --git a/drivers/android/binder_alloc.c b/drivers/android/binder_alloc.c
 index 47bc74a8c7b6..22b8e4412778 100644
 --- a/drivers/android/binder_alloc.c
@@ -32734,6 +32713,55 @@ index 000000000000..99cc35abf45c
 +}
 +
 +module_init(lrng_raw_init);
+diff --git a/drivers/clk/meson/gxbb.c b/drivers/clk/meson/gxbb.c
+index 608e0e8ca49a..80d2099ff3c3 100644
+--- a/drivers/clk/meson/gxbb.c
++++ b/drivers/clk/meson/gxbb.c
+@@ -741,6 +741,35 @@ static struct clk_regmap gxbb_mpll0_div = {
+ 	},
+ };
+ 
++static struct clk_regmap gxl_mpll0_div = {
++	.data = &(struct meson_clk_mpll_data){
++		.sdm = {
++			.reg_off = HHI_MPLL_CNTL7,
++			.shift   = 0,
++			.width   = 14,
++		},
++		.sdm_en = {
++			.reg_off = HHI_MPLL_CNTL,
++			.shift   = 25,
++			.width	 = 1,
++		},
++		.n2 = {
++			.reg_off = HHI_MPLL_CNTL7,
++			.shift   = 16,
++			.width   = 9,
++		},
++		.lock = &meson_clk_lock,
++	},
++	.hw.init = &(struct clk_init_data){
++		.name = "mpll0_div",
++		.ops = &meson_clk_mpll_ops,
++		.parent_hws = (const struct clk_hw *[]) {
++			&gxbb_mpll_prediv.hw
++		},
++		.num_parents = 1,
++	},
++};
++
+ static struct clk_regmap gxl_mpll0_div = {
+ 	.data = &(struct meson_clk_mpll_data){
+ 		.sdm = {
+@@ -3283,7 +3312,7 @@ static struct clk_regmap *const gxbb_clk_regmaps[] = {
+ 	&gxbb_mpll0,
+ 	&gxbb_mpll1,
+ 	&gxbb_mpll2,
+-	&gxbb_mpll0_div,
++	&gxl_mpll0_div,
+ 	&gxbb_mpll1_div,
+ 	&gxbb_mpll2_div,
+ 	&gxbb_cts_amclk_div,
 diff --git a/drivers/cpufreq/Kconfig.x86 b/drivers/cpufreq/Kconfig.x86
 index 92701a18bdd9..55516043b656 100644
 --- a/drivers/cpufreq/Kconfig.x86
@@ -33579,6 +33607,23 @@ index 3b8f924771b4..de09615c228c 100644
   * (default), then we try to increase frequency. Else, we adjust the frequency
   * proportional to load.
   */
+diff --git a/drivers/gpu/drm/etnaviv/etnaviv_gem_submit.c b/drivers/gpu/drm/etnaviv/etnaviv_gem_submit.c
+index 90488ab8c6d8..ccfdebd10f8e 100644
+--- a/drivers/gpu/drm/etnaviv/etnaviv_gem_submit.c
++++ b/drivers/gpu/drm/etnaviv/etnaviv_gem_submit.c
+@@ -475,6 +475,12 @@ int etnaviv_ioctl_gem_submit(struct drm_device *dev, void *data,
+ 		return -EINVAL;
+ 	}
+ 
++	if (args->stream_size > SZ_128K || args->nr_relocs > SZ_128K ||
++	    args->nr_bos > SZ_128K || args->nr_pmrs > 128) {
++		DRM_ERROR("submit arguments out of size limits\n");
++		return -EINVAL;
++	}
++
+ 	/*
+ 	 * Copy the command submission and bo array to kernel space in
+ 	 * one go, and do this outside of any locks.
 diff --git a/drivers/i2c/busses/Kconfig b/drivers/i2c/busses/Kconfig
 index dce392839017..2d481f55edf2 100644
 --- a/drivers/i2c/busses/Kconfig
@@ -35366,6 +35411,52 @@ index 000000000000..ff5749206aa9
 +MODULE_LICENSE("GPL");
 +MODULE_ALIAS("devname:" WINESYNC_NAME);
 +MODULE_ALIAS_MISCDEV(WINESYNC_MINOR);
+diff --git a/drivers/net/ethernet/intel/e1000e/ich8lan.c b/drivers/net/ethernet/intel/e1000e/ich8lan.c
+index c908c84b86d2..d2b26e6ff822 100644
+--- a/drivers/net/ethernet/intel/e1000e/ich8lan.c
++++ b/drivers/net/ethernet/intel/e1000e/ich8lan.c
+@@ -6041,3 +6041,23 @@ const struct e1000_info e1000_pch_adp_info = {
+ 	.phy_ops		= &ich8_phy_ops,
+ 	.nvm_ops		= &spt_nvm_ops,
+ };
++
++const struct e1000_info e1000_pch_adp_info = {
++	.mac			= e1000_pch_adp,
++	.flags			= FLAG_IS_ICH
++				  | FLAG_HAS_WOL
++				  | FLAG_HAS_HW_TIMESTAMP
++				  | FLAG_HAS_CTRLEXT_ON_LOAD
++				  | FLAG_HAS_AMT
++				  | FLAG_HAS_FLASH
++				  | FLAG_HAS_JUMBO_FRAMES
++				  | FLAG_APME_IN_WUC,
++	.flags2			= FLAG2_HAS_PHY_STATS
++				  | FLAG2_HAS_EEE,
++	.pba			= 26,
++	.max_hw_frame_size	= 9022,
++	.get_variants		= e1000_get_variants_ich8lan,
++	.mac_ops		= &ich8_mac_ops,
++	.phy_ops		= &ich8_phy_ops,
++	.nvm_ops		= &spt_nvm_ops,
++};
+diff --git a/drivers/net/wireless/ath/ath9k/hif_usb.c b/drivers/net/wireless/ath/ath9k/hif_usb.c
+index f06eec99de68..299adda3a1c7 100644
+--- a/drivers/net/wireless/ath/ath9k/hif_usb.c
++++ b/drivers/net/wireless/ath/ath9k/hif_usb.c
+@@ -597,6 +597,13 @@ static void ath9k_hif_usb_rx_stream(struct hif_device_usb *hif_dev,
+ 			return;
+ 		}
+ 
++		if (pkt_len > 2 * MAX_RX_BUF_SIZE) {
++			dev_err(&hif_dev->udev->dev,
++				"ath9k_htc: invalid pkt_len (%x)\n", pkt_len);
++			RX_STAT_INC(skb_dropped);
++			return;
++		}
++
+ 		pad_len = 4 - (pkt_len & 0x3);
+ 		if (pad_len == 4)
+ 			pad_len = 0;
 diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/pci.c b/drivers/net/wireless/mediatek/mt76/mt7921/pci.c
 index 40186e6cd865..1212b803b1c8 100644
 --- a/drivers/net/wireless/mediatek/mt76/mt7921/pci.c
@@ -35380,7 +35471,7 @@ index 40186e6cd865..1212b803b1c8 100644
  };
  
 diff --git a/drivers/pci/quirks.c b/drivers/pci/quirks.c
-index 20a932690738..81c191ea2704 100644
+index 20a932690738..8272c67785cf 100644
 --- a/drivers/pci/quirks.c
 +++ b/drivers/pci/quirks.c
 @@ -3588,6 +3588,106 @@ static void quirk_no_bus_reset(struct pci_dev *dev)
@@ -35490,12 +35581,40 @@ index 20a932690738..81c191ea2704 100644
  /*
   * Some NVIDIA GPU devices do not work with bus reset, SBR needs to be
   * prevented for those affected devices.
-@@ -4953,6 +5053,7 @@ static const struct pci_dev_acs_enabled {
+@@ -4104,6 +4204,9 @@ DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9120,
+ DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9123,
+ 			 quirk_dma_func1_alias);
+ /* https://bugzilla.kernel.org/show_bug.cgi?id=42679#c136 */
++DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9125,
++			 quirk_dma_func1_alias);
++/* https://bugzilla.kernel.org/show_bug.cgi?id=42679#c136 */
+ DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9125,
+ 			 quirk_dma_func1_alias);
+ DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_MARVELL_EXT, 0x9128,
+@@ -4953,6 +5056,7 @@ static const struct pci_dev_acs_enabled {
  	{ PCI_VENDOR_ID_NXP, 0x8d9b, pci_quirk_nxp_rp_acs },
  	/* Zhaoxin Root/Downstream Ports */
  	{ PCI_VENDOR_ID_ZHAOXIN, PCI_ANY_ID, pci_quirk_zhaoxin_pcie_ports_acs },
 +	{ PCI_ANY_ID, PCI_ANY_ID, pcie_acs_overrides },
  	{ 0 }
+ };
+ 
+diff --git a/drivers/platform/x86/intel/hid.c b/drivers/platform/x86/intel/hid.c
+index 41a2a026f156..149208f91b5d 100644
+--- a/drivers/platform/x86/intel/hid.c
++++ b/drivers/platform/x86/intel/hid.c
+@@ -113,6 +113,13 @@ static const struct dmi_system_id button_array_table[] = {
+ 			DMI_MATCH(DMI_PRODUCT_NAME, "Surface Go 3"),
+ 		},
+ 	},
++	{
++		.ident = "Microsoft Surface Go 3",
++		.matches = {
++			DMI_MATCH(DMI_SYS_VENDOR, "Microsoft Corporation"),
++			DMI_MATCH(DMI_PRODUCT_NAME, "Surface Go 3"),
++		},
++	},
+ 	{ }
  };
  
 diff --git a/drivers/powercap/intel_rapl_common.c b/drivers/powercap/intel_rapl_common.c
@@ -35511,6 +35630,69 @@ index 7c0099e7a6d7..f0d65382806a 100644
  		       boot_cpu_data.x86, boot_cpu_data.x86_model);
  
  		return -ENODEV;
+diff --git a/drivers/regulator/da9121-regulator.c b/drivers/regulator/da9121-regulator.c
+index 0a4fd449c27d..f3ecd2f34f22 100644
+--- a/drivers/regulator/da9121-regulator.c
++++ b/drivers/regulator/da9121-regulator.c
+@@ -258,6 +258,11 @@ static int da9121_set_current_limit(struct regulator_dev *rdev,
+ 		goto error;
+ 	}
+ 
++	if (rdev->desc->ops->is_enabled(rdev)) {
++		ret = -EBUSY;
++		goto error;
++	}
++
+ 	ret = da9121_ceiling_selector(rdev, min_ua, max_ua, &sel);
+ 	if (ret < 0)
+ 		goto error;
+diff --git a/drivers/remoteproc/qcom_q6v5_pas.c b/drivers/remoteproc/qcom_q6v5_pas.c
+index 120c16b14223..a05cc9356ad1 100644
+--- a/drivers/remoteproc/qcom_q6v5_pas.c
++++ b/drivers/remoteproc/qcom_q6v5_pas.c
+@@ -636,6 +636,7 @@ static const struct adsp_data sm8250_cdsp_resource = {
+ 	.auto_boot = true,
+ 	.proxy_pd_names = (char*[]){
+ 		"cx",
++		"mxc",
+ 		NULL
+ 	},
+ 	.load_state = "cdsp",
+diff --git a/drivers/spi/spi-geni-qcom.c b/drivers/spi/spi-geni-qcom.c
+index 079d0cb783ee..d5729f06909f 100644
+--- a/drivers/spi/spi-geni-qcom.c
++++ b/drivers/spi/spi-geni-qcom.c
+@@ -192,6 +192,30 @@ static void spi_geni_handle_err(struct spi_master *spi, struct spi_message *msg)
+ 	}
+ }
+ 
++static void handle_gpi_timeout(struct spi_master *spi, struct spi_message *msg)
++{
++	struct spi_geni_master *mas = spi_master_get_devdata(spi);
++
++	dmaengine_terminate_sync(mas->tx);
++	dmaengine_terminate_sync(mas->rx);
++}
++
++static void spi_geni_handle_err(struct spi_master *spi, struct spi_message *msg)
++{
++	struct spi_geni_master *mas = spi_master_get_devdata(spi);
++
++	switch (mas->cur_xfer_mode) {
++	case GENI_SE_FIFO:
++		handle_fifo_timeout(spi, msg);
++		break;
++	case GENI_GPI_DMA:
++		handle_gpi_timeout(spi, msg);
++		break;
++	default:
++		dev_err(mas->dev, "Abort on Mode:%d not supported", mas->cur_xfer_mode);
++	}
++}
++
+ static bool spi_geni_is_abort_still_pending(struct spi_geni_master *mas)
+ {
+ 	struct geni_se *se = &mas->se;
 diff --git a/drivers/staging/android/Kconfig b/drivers/staging/android/Kconfig
 index 70498adb1575..5c35653ed36d 100644
 --- a/drivers/staging/android/Kconfig
@@ -35822,47 +36004,6 @@ index 000000000000..3e8f93b53c84
 +#endif	/* CONFIG_LRNG_DRNG_SWITCH */
 +
 +#endif /* _LRNG_H */
-diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index 5c59d045359b..39aee093be84 100644
---- a/include/linux/memcontrol.h
-+++ b/include/linux/memcontrol.h
-@@ -341,6 +341,11 @@ struct mem_cgroup {
- 	struct deferred_split deferred_split_queue;
- #endif
- 
-+#ifdef CONFIG_LRU_GEN
-+	/* per-memcg mm_struct list */
-+	struct lru_gen_mm_list mm_list;
-+#endif
-+
- 	struct mem_cgroup_per_node *nodeinfo[];
- };
- 
-@@ -1389,18 +1394,24 @@ mem_cgroup_print_oom_meminfo(struct mem_cgroup *memcg)
- 
- static inline void lock_page_memcg(struct page *page)
- {
-+	/* to match folio_memcg_rcu() */
-+	rcu_read_lock();
- }
- 
- static inline void unlock_page_memcg(struct page *page)
- {
-+	rcu_read_unlock();
- }
- 
- static inline void folio_memcg_lock(struct folio *folio)
- {
-+	/* to match folio_memcg_rcu() */
-+	rcu_read_lock();
- }
- 
- static inline void folio_memcg_unlock(struct folio *folio)
- {
-+	rcu_read_unlock();
- }
- 
- static inline void mem_cgroup_handle_over_high(void)
 diff --git a/include/linux/miscdevice.h b/include/linux/miscdevice.h
 index 0676f18093f9..350aecfcfb29 100644
 --- a/include/linux/miscdevice.h
@@ -36305,7 +36446,7 @@ index c3a6e6209600..bdbd9390adb3 100644
  extern void tlb_gather_mmu(struct mmu_gather *tlb, struct mm_struct *mm);
  extern void tlb_gather_mmu_fullmm(struct mmu_gather *tlb, struct mm_struct *mm);
 diff --git a/include/linux/mmzone.h b/include/linux/mmzone.h
-index aed44e9b5d89..15120d546470 100644
+index aed44e9b5d89..4b0d3d32c52f 100644
 --- a/include/linux/mmzone.h
 +++ b/include/linux/mmzone.h
 @@ -303,6 +303,171 @@ enum lruvec_flags {
@@ -36504,6 +36645,22 @@ index aed44e9b5d89..15120d546470 100644
  	ZONE_PADDING(_pad2_)
  
  	/* Per-node vmstats */
+@@ -1056,6 +1231,15 @@ static inline bool has_managed_dma(void)
+ }
+ #endif
+ 
++#ifdef CONFIG_ZONE_DMA
++bool has_managed_dma(void);
++#else
++static inline bool has_managed_dma(void)
++{
++	return false;
++}
++#endif
++
+ /**
+  * is_highmem - helper function to quickly check if a struct zone is a
+  *              highmem zone or not.  This is an attempt to keep references
 diff --git a/include/linux/nodemask.h b/include/linux/nodemask.h
 index 567c3ddba2c4..90840c459abc 100644
 --- a/include/linux/nodemask.h
@@ -36616,48 +36773,6 @@ index b5f14d581113..d609c71ea228 100644
  
  #define PAGE_FLAGS_PRIVATE				\
  	(1UL << PG_private | 1UL << PG_private_2)
-diff --git a/include/linux/pgtable.h b/include/linux/pgtable.h
-index d468efcf48f4..e06d1287d0f7 100644
---- a/include/linux/pgtable.h
-+++ b/include/linux/pgtable.h
-@@ -212,7 +212,7 @@ static inline int ptep_test_and_clear_young(struct vm_area_struct *vma,
- #endif
- 
- #ifndef __HAVE_ARCH_PMDP_TEST_AND_CLEAR_YOUNG
--#ifdef CONFIG_TRANSPARENT_HUGEPAGE
-+#if defined(CONFIG_TRANSPARENT_HUGEPAGE) || defined(CONFIG_ARCH_HAS_NONLEAF_PMD_YOUNG)
- static inline int pmdp_test_and_clear_young(struct vm_area_struct *vma,
- 					    unsigned long address,
- 					    pmd_t *pmdp)
-@@ -233,7 +233,7 @@ static inline int pmdp_test_and_clear_young(struct vm_area_struct *vma,
- 	BUILD_BUG();
- 	return 0;
- }
--#endif /* CONFIG_TRANSPARENT_HUGEPAGE */
-+#endif /* CONFIG_TRANSPARENT_HUGEPAGE || CONFIG_ARCH_HAS_NONLEAF_PMD_YOUNG */
- #endif
- 
- #ifndef __HAVE_ARCH_PTEP_CLEAR_YOUNG_FLUSH
-@@ -259,6 +259,19 @@ static inline int pmdp_clear_flush_young(struct vm_area_struct *vma,
- #endif /* CONFIG_TRANSPARENT_HUGEPAGE */
- #endif
- 
-+#ifndef arch_has_hw_pte_young
-+/*
-+ * Return whether the accessed bit is supported by the local CPU or system-wide.
-+ *
-+ * This stub assumes accessing thru an old PTE triggers a page fault.
-+ * Architectures that automatically set the access bit should overwrite it.
-+ */
-+static inline bool arch_has_hw_pte_young(bool local)
-+{
-+	return false;
-+}
-+#endif
-+
- #ifndef __HAVE_ARCH_PTEP_GET_AND_CLEAR
- static inline pte_t ptep_get_and_clear(struct mm_struct *mm,
- 				       unsigned long address,
 diff --git a/include/linux/sched.h b/include/linux/sched.h
 index ee5ed8821963..9845272f28d2 100644
 --- a/include/linux/sched.h
@@ -37314,6 +37429,22 @@ index 9795d75b09b2..aba13aa7336c 100644
  	/* End of constants */
  
  	return 0;
+diff --git a/kernel/bpf/bloom_filter.c b/kernel/bpf/bloom_filter.c
+index b141a1346f72..927c34f1510c 100644
+--- a/kernel/bpf/bloom_filter.c
++++ b/kernel/bpf/bloom_filter.c
+@@ -87,6 +87,11 @@ static int bloom_map_get_next_key(struct bpf_map *map, void *key, void *next_key
+ 	return -EOPNOTSUPP;
+ }
+ 
++static int bloom_map_get_next_key(struct bpf_map *map, void *key, void *next_key)
++{
++	return -EOPNOTSUPP;
++}
++
+ static struct bpf_map *bloom_map_alloc(union bpf_attr *attr)
+ {
+ 	u32 bitset_bytes, bitset_mask, nr_hash_funcs, nr_bits;
 diff --git a/kernel/cgroup/cgroup-internal.h b/kernel/cgroup/cgroup-internal.h
 index 6e36e854b512..929ed3bf1a7c 100644
 --- a/kernel/cgroup/cgroup-internal.h
@@ -37339,7 +37470,7 @@ index f702a6a63686..f8bf605c9ba5 100644
  	put_task_struct(c);
  }
 diff --git a/kernel/fork.c b/kernel/fork.c
-index fdcfb4b70815..93c341d9db55 100644
+index fdcfb4b70815..12970c55afe0 100644
 --- a/kernel/fork.c
 +++ b/kernel/fork.c
 @@ -108,6 +108,11 @@
@@ -37378,7 +37509,28 @@ index fdcfb4b70815..93c341d9db55 100644
  #endif
  
  /**
-@@ -2607,6 +2615,13 @@ pid_t kernel_clone(struct kernel_clone_args *args)
+@@ -1952,6 +1960,10 @@ static __latent_entropy struct task_struct *copy_process(
+ 		if (!capable(CAP_SYS_ADMIN))
+ 			return ERR_PTR(-EPERM);
+ 
++	if ((clone_flags & CLONE_NEWUSER) && !unprivileged_userns_clone)
++		if (!capable(CAP_SYS_ADMIN))
++			return ERR_PTR(-EPERM);
++
+ 	/*
+ 	 * Thread groups must share signals as well, and detached threads
+ 	 * can only be started up within the thread group.
+@@ -2403,6 +2415,9 @@ static __latent_entropy struct task_struct *copy_process(
+ 	syscall_tracepoint_update(p);
+ 	write_unlock_irq(&tasklist_lock);
+ 
++	if (pidfile)
++		fd_install(pidfd, pidfile);
++
+ 	if (pidfile)
+ 		fd_install(pidfd, pidfile);
+ 
+@@ -2607,6 +2622,13 @@ pid_t kernel_clone(struct kernel_clone_args *args)
  		get_task_struct(p);
  	}
  
@@ -37392,6 +37544,19 @@ index fdcfb4b70815..93c341d9db55 100644
  	wake_up_new_task(p);
  
  	/* forking complete and child started to run, tell ptracer */
+@@ -3063,6 +3085,12 @@ int ksys_unshare(unsigned long unshare_flags)
+ 			goto bad_unshare_out;
+ 	}
+ 
++	if ((unshare_flags & CLONE_NEWUSER) && !unprivileged_userns_clone) {
++		err = -EPERM;
++		if (!capable(CAP_SYS_ADMIN))
++			goto bad_unshare_out;
++	}
++
+ 	err = check_unshare_flags(unshare_flags);
+ 	if (err)
+ 		goto bad_unshare_out;
 diff --git a/kernel/futex/syscalls.c b/kernel/futex/syscalls.c
 index 6f91a07a6a83..2f4d4c04ede2 100644
 --- a/kernel/futex/syscalls.c
@@ -37577,297 +37742,6 @@ index d24823b3c3f9..3cad3e88be6a 100644
  
  #ifdef __ARCH_WANT_SYS_NICE
  
-diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
-index 54b06fbe9177..b650b619078e 100644
---- a/kernel/sched/fair.c
-+++ b/kernel/sched/fair.c
-@@ -6609,271 +6609,6 @@ static unsigned long cpu_util_without(int cpu, struct task_struct *p)
- 	return min_t(unsigned long, util, capacity_orig_of(cpu));
- }
- 
--/*
-- * Predicts what cpu_util(@cpu) would return if @p was migrated (and enqueued)
-- * to @dst_cpu.
-- */
--static unsigned long cpu_util_next(int cpu, struct task_struct *p, int dst_cpu)
--{
--	struct cfs_rq *cfs_rq = &cpu_rq(cpu)->cfs;
--	unsigned long util_est, util = READ_ONCE(cfs_rq->avg.util_avg);
--
--	/*
--	 * If @p migrates from @cpu to another, remove its contribution. Or,
--	 * if @p migrates from another CPU to @cpu, add its contribution. In
--	 * the other cases, @cpu is not impacted by the migration, so the
--	 * util_avg should already be correct.
--	 */
--	if (task_cpu(p) == cpu && dst_cpu != cpu)
--		lsub_positive(&util, task_util(p));
--	else if (task_cpu(p) != cpu && dst_cpu == cpu)
--		util += task_util(p);
--
--	if (sched_feat(UTIL_EST)) {
--		util_est = READ_ONCE(cfs_rq->avg.util_est.enqueued);
--
--		/*
--		 * During wake-up, the task isn't enqueued yet and doesn't
--		 * appear in the cfs_rq->avg.util_est.enqueued of any rq,
--		 * so just add it (if needed) to "simulate" what will be
--		 * cpu_util() after the task has been enqueued.
--		 */
--		if (dst_cpu == cpu)
--			util_est += _task_util_est(p);
--
--		util = max(util, util_est);
--	}
--
--	return min(util, capacity_orig_of(cpu));
--}
--
--/*
-- * compute_energy(): Estimates the energy that @pd would consume if @p was
-- * migrated to @dst_cpu. compute_energy() predicts what will be the utilization
-- * landscape of @pd's CPUs after the task migration, and uses the Energy Model
-- * to compute what would be the energy if we decided to actually migrate that
-- * task.
-- */
--static long
--compute_energy(struct task_struct *p, int dst_cpu, struct perf_domain *pd)
--{
--	struct cpumask *pd_mask = perf_domain_span(pd);
--	unsigned long cpu_cap = arch_scale_cpu_capacity(cpumask_first(pd_mask));
--	unsigned long max_util = 0, sum_util = 0;
--	unsigned long _cpu_cap = cpu_cap;
--	int cpu;
--
--	_cpu_cap -= arch_scale_thermal_pressure(cpumask_first(pd_mask));
--
--	/*
--	 * The capacity state of CPUs of the current rd can be driven by CPUs
--	 * of another rd if they belong to the same pd. So, account for the
--	 * utilization of these CPUs too by masking pd with cpu_online_mask
--	 * instead of the rd span.
--	 *
--	 * If an entire pd is outside of the current rd, it will not appear in
--	 * its pd list and will not be accounted by compute_energy().
--	 */
--	for_each_cpu_and(cpu, pd_mask, cpu_online_mask) {
--		unsigned long util_freq = cpu_util_next(cpu, p, dst_cpu);
--		unsigned long cpu_util, util_running = util_freq;
--		struct task_struct *tsk = NULL;
--
--		/*
--		 * When @p is placed on @cpu:
--		 *
--		 * util_running = max(cpu_util, cpu_util_est) +
--		 *		  max(task_util, _task_util_est)
--		 *
--		 * while cpu_util_next is: max(cpu_util + task_util,
--		 *			       cpu_util_est + _task_util_est)
--		 */
--		if (cpu == dst_cpu) {
--			tsk = p;
--			util_running =
--				cpu_util_next(cpu, p, -1) + task_util_est(p);
--		}
--
--		/*
--		 * Busy time computation: utilization clamping is not
--		 * required since the ratio (sum_util / cpu_capacity)
--		 * is already enough to scale the EM reported power
--		 * consumption at the (eventually clamped) cpu_capacity.
--		 */
--		cpu_util = effective_cpu_util(cpu, util_running, cpu_cap,
--					      ENERGY_UTIL, NULL);
--
--		sum_util += min(cpu_util, _cpu_cap);
--
--		/*
--		 * Performance domain frequency: utilization clamping
--		 * must be considered since it affects the selection
--		 * of the performance domain frequency.
--		 * NOTE: in case RT tasks are running, by default the
--		 * FREQUENCY_UTIL's utilization can be max OPP.
--		 */
--		cpu_util = effective_cpu_util(cpu, util_freq, cpu_cap,
--					      FREQUENCY_UTIL, tsk);
--		max_util = max(max_util, min(cpu_util, _cpu_cap));
--	}
--
--	return em_cpu_energy(pd->em_pd, max_util, sum_util, _cpu_cap);
--}
--
--/*
-- * find_energy_efficient_cpu(): Find most energy-efficient target CPU for the
-- * waking task. find_energy_efficient_cpu() looks for the CPU with maximum
-- * spare capacity in each performance domain and uses it as a potential
-- * candidate to execute the task. Then, it uses the Energy Model to figure
-- * out which of the CPU candidates is the most energy-efficient.
-- *
-- * The rationale for this heuristic is as follows. In a performance domain,
-- * all the most energy efficient CPU candidates (according to the Energy
-- * Model) are those for which we'll request a low frequency. When there are
-- * several CPUs for which the frequency request will be the same, we don't
-- * have enough data to break the tie between them, because the Energy Model
-- * only includes active power costs. With this model, if we assume that
-- * frequency requests follow utilization (e.g. using schedutil), the CPU with
-- * the maximum spare capacity in a performance domain is guaranteed to be among
-- * the best candidates of the performance domain.
-- *
-- * In practice, it could be preferable from an energy standpoint to pack
-- * small tasks on a CPU in order to let other CPUs go in deeper idle states,
-- * but that could also hurt our chances to go cluster idle, and we have no
-- * ways to tell with the current Energy Model if this is actually a good
-- * idea or not. So, find_energy_efficient_cpu() basically favors
-- * cluster-packing, and spreading inside a cluster. That should at least be
-- * a good thing for latency, and this is consistent with the idea that most
-- * of the energy savings of EAS come from the asymmetry of the system, and
-- * not so much from breaking the tie between identical CPUs. That's also the
-- * reason why EAS is enabled in the topology code only for systems where
-- * SD_ASYM_CPUCAPACITY is set.
-- *
-- * NOTE: Forkees are not accepted in the energy-aware wake-up path because
-- * they don't have any useful utilization data yet and it's not possible to
-- * forecast their impact on energy consumption. Consequently, they will be
-- * placed by find_idlest_cpu() on the least loaded CPU, which might turn out
-- * to be energy-inefficient in some use-cases. The alternative would be to
-- * bias new tasks towards specific types of CPUs first, or to try to infer
-- * their util_avg from the parent task, but those heuristics could hurt
-- * other use-cases too. So, until someone finds a better way to solve this,
-- * let's keep things simple by re-using the existing slow path.
-- */
--static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
--{
--	unsigned long prev_delta = ULONG_MAX, best_delta = ULONG_MAX;
--	struct root_domain *rd = cpu_rq(smp_processor_id())->rd;
--	int cpu, best_energy_cpu = prev_cpu, target = -1;
--	unsigned long cpu_cap, util, base_energy = 0;
--	struct sched_domain *sd;
--	struct perf_domain *pd;
--
--	rcu_read_lock();
--	pd = rcu_dereference(rd->pd);
--	if (!pd || READ_ONCE(rd->overutilized))
--		goto unlock;
--
--	/*
--	 * Energy-aware wake-up happens on the lowest sched_domain starting
--	 * from sd_asym_cpucapacity spanning over this_cpu and prev_cpu.
--	 */
--	sd = rcu_dereference(*this_cpu_ptr(&sd_asym_cpucapacity));
--	while (sd && !cpumask_test_cpu(prev_cpu, sched_domain_span(sd)))
--		sd = sd->parent;
--	if (!sd)
--		goto unlock;
--
--	target = prev_cpu;
--
--	sync_entity_load_avg(&p->se);
--	if (!task_util_est(p))
--		goto unlock;
--
--	for (; pd; pd = pd->next) {
--		unsigned long cur_delta, spare_cap, max_spare_cap = 0;
--		bool compute_prev_delta = false;
--		unsigned long base_energy_pd;
--		int max_spare_cap_cpu = -1;
--
--		for_each_cpu_and(cpu, perf_domain_span(pd), sched_domain_span(sd)) {
--			if (!cpumask_test_cpu(cpu, p->cpus_ptr))
--				continue;
--
--			util = cpu_util_next(cpu, p, cpu);
--			cpu_cap = capacity_of(cpu);
--			spare_cap = cpu_cap;
--			lsub_positive(&spare_cap, util);
--
--			/*
--			 * Skip CPUs that cannot satisfy the capacity request.
--			 * IOW, placing the task there would make the CPU
--			 * overutilized. Take uclamp into account to see how
--			 * much capacity we can get out of the CPU; this is
--			 * aligned with sched_cpu_util().
--			 */
--			util = uclamp_rq_util_with(cpu_rq(cpu), util, p);
--			if (!fits_capacity(util, cpu_cap))
--				continue;
--
--			if (cpu == prev_cpu) {
--				/* Always use prev_cpu as a candidate. */
--				compute_prev_delta = true;
--			} else if (spare_cap > max_spare_cap) {
--				/*
--				 * Find the CPU with the maximum spare capacity
--				 * in the performance domain.
--				 */
--				max_spare_cap = spare_cap;
--				max_spare_cap_cpu = cpu;
--			}
--		}
--
--		if (max_spare_cap_cpu < 0 && !compute_prev_delta)
--			continue;
--
--		/* Compute the 'base' energy of the pd, without @p */
--		base_energy_pd = compute_energy(p, -1, pd);
--		base_energy += base_energy_pd;
--
--		/* Evaluate the energy impact of using prev_cpu. */
--		if (compute_prev_delta) {
--			prev_delta = compute_energy(p, prev_cpu, pd);
--			if (prev_delta < base_energy_pd)
--				goto unlock;
--			prev_delta -= base_energy_pd;
--			best_delta = min(best_delta, prev_delta);
--		}
--
--		/* Evaluate the energy impact of using max_spare_cap_cpu. */
--		if (max_spare_cap_cpu >= 0) {
--			cur_delta = compute_energy(p, max_spare_cap_cpu, pd);
--			if (cur_delta < base_energy_pd)
--				goto unlock;
--			cur_delta -= base_energy_pd;
--			if (cur_delta < best_delta) {
--				best_delta = cur_delta;
--				best_energy_cpu = max_spare_cap_cpu;
--			}
--		}
--	}
--	rcu_read_unlock();
--
--	/*
--	 * Pick the best CPU if prev_cpu cannot be used, or if it saves at
--	 * least 6% of the energy used by prev_cpu.
--	 */
--	if ((prev_delta == ULONG_MAX) ||
--	    (prev_delta - best_delta) > ((prev_delta + base_energy) >> 4))
--		target = best_energy_cpu;
--
--	return target;
--
--unlock:
--	rcu_read_unlock();
--
--	return target;
--}
--
- /*
-  * select_task_rq_fair: Select target runqueue for the waking task in domains
-  * that have the relevant SD flag set. In practice, this is SD_BALANCE_WAKE,
-@@ -6901,14 +6636,6 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int wake_flags)
- 	lockdep_assert_held(&p->pi_lock);
- 	if (wake_flags & WF_TTWU) {
- 		record_wakee(p);
--
--		if (sched_energy_enabled()) {
--			new_cpu = find_energy_efficient_cpu(p, prev_cpu);
--			if (new_cpu >= 0)
--				return new_cpu;
--			new_cpu = prev_cpu;
--		}
--
- 		want_affine = !wake_wide(p) && cpumask_test_cpu(cpu, p->cpus_ptr);
- 	}
- 
 diff --git a/kernel/sched/wait.c b/kernel/sched/wait.c
 index eca38107b32f..1034b23ab108 100644
 --- a/kernel/sched/wait.c
@@ -37881,7 +37755,7 @@ index eca38107b32f..1034b23ab108 100644
  /*
   * Note: we use "set_current_state()" _after_ the wait-queue add,
 diff --git a/kernel/sysctl.c b/kernel/sysctl.c
-index a6f0869a1e5b..ac4081a43522 100644
+index a6f0869a1e5b..33517ea6f8f7 100644
 --- a/kernel/sysctl.c
 +++ b/kernel/sysctl.c
 @@ -200,6 +200,10 @@ static int min_extfrag_threshold __read_only;
@@ -37895,7 +37769,23 @@ index a6f0869a1e5b..ac4081a43522 100644
  #endif /* CONFIG_SYSCTL */
  
  #if defined(CONFIG_BPF_SYSCALL) && defined(CONFIG_SYSCTL)
-@@ -3190,6 +3194,27 @@ static struct ctl_table vm_table[] = {
+@@ -1988,6 +1992,15 @@ static struct ctl_table kern_table[] = {
+ 		.proc_handler	= proc_dointvec,
+ 	},
+ #endif
++#ifdef CONFIG_USER_NS
++	{
++		.procname	= "unprivileged_userns_clone",
++		.data		= &unprivileged_userns_clone,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec,
++	},
++#endif
+ #ifdef CONFIG_PROC_SYSCTL
+ 	{
+ 		.procname	= "tainted",
+@@ -3190,6 +3203,27 @@ static struct ctl_table vm_table[] = {
  		.extra2		= SYSCTL_ONE,
  	},
  #endif
@@ -37936,21 +37826,19 @@ index 1698fbe6f0e1..90000404af2b 100644
  /**
   * task_work_cancel_match - cancel a pending work added by task_work_add()
 diff --git a/kernel/user_namespace.c b/kernel/user_namespace.c
-index 0253002184f1..1703a186f990 100644
+index 0253002184f1..85f8fc780280 100644
 --- a/kernel/user_namespace.c
 +++ b/kernel/user_namespace.c
-@@ -22,11 +22,7 @@
- #include <linux/sort.h>
+@@ -28,6 +28,9 @@ int unprivileged_userns_clone = 1;
+ int unprivileged_userns_clone;
+ #endif
  
- /* sysctl */
--#ifdef CONFIG_USER_NS_UNPRIVILEGED
- int unprivileged_userns_clone = 1;
--#else
--int unprivileged_userns_clone;
--#endif
- 
++/* sysctl */
++int unprivileged_userns_clone = 1;
++
  static struct kmem_cache *user_ns_cachep __read_mostly;
  static DEFINE_MUTEX(userns_state_mutex);
+ 
 diff --git a/lib/Kconfig.debug b/lib/Kconfig.debug
 index cc7b1337234a..eb04ca9d1a36 100644
 --- a/lib/Kconfig.debug
@@ -38123,64 +38011,6 @@ index e5483347291c..2e2ca7ecff63 100644
  
  	/* ->mapping in first tail page is compound_mapcount */
  	VM_BUG_ON_PAGE(tail > 2 && page_tail->mapping != TAIL_MAPPING,
-diff --git a/mm/memcontrol.c b/mm/memcontrol.c
-index e57b14f96615..257fb4b218f8 100644
---- a/mm/memcontrol.c
-+++ b/mm/memcontrol.c
-@@ -5104,6 +5104,7 @@ static void __mem_cgroup_free(struct mem_cgroup *memcg)
- 
- static void mem_cgroup_free(struct mem_cgroup *memcg)
- {
-+	lru_gen_free_memcg(memcg);
- 	memcg_wb_domain_exit(memcg);
- 	__mem_cgroup_free(memcg);
- }
-@@ -5167,6 +5168,7 @@ static struct mem_cgroup *mem_cgroup_alloc(void)
- 	memcg->deferred_split_queue.split_queue_len = 0;
- #endif
- 	idr_replace(&mem_cgroup_idr, memcg, memcg->id.id);
-+	lru_gen_init_memcg(memcg);
- 	return memcg;
- fail:
- 	mem_cgroup_id_remove(memcg);
-@@ -6139,6 +6141,29 @@ static void mem_cgroup_move_task(void)
- }
- #endif
- 
-+#ifdef CONFIG_LRU_GEN
-+static void mem_cgroup_attach(struct cgroup_taskset *tset)
-+{
-+	struct cgroup_subsys_state *css;
-+	struct task_struct *task = NULL;
-+
-+	cgroup_taskset_for_each_leader(task, css, tset)
-+		break;
-+
-+	if (!task)
-+		return;
-+
-+	task_lock(task);
-+	if (task->mm && task->mm->owner == task)
-+		lru_gen_migrate_mm(task->mm);
-+	task_unlock(task);
-+}
-+#else
-+static void mem_cgroup_attach(struct cgroup_taskset *tset)
-+{
-+}
-+#endif /* CONFIG_LRU_GEN */
-+
- static int seq_puts_memcg_tunable(struct seq_file *m, unsigned long value)
- {
- 	if (value == PAGE_COUNTER_MAX)
-@@ -6482,6 +6507,7 @@ struct cgroup_subsys memory_cgrp_subsys = {
- 	.css_reset = mem_cgroup_css_reset,
- 	.css_rstat_flush = mem_cgroup_css_rstat_flush,
- 	.can_attach = mem_cgroup_can_attach,
-+	.attach = mem_cgroup_attach,
- 	.cancel_attach = mem_cgroup_cancel_attach,
- 	.post_attach = mem_cgroup_move_task,
- 	.dfl_cftypes = memory_files,
 diff --git a/mm/memory.c b/mm/memory.c
 index 8f1de811a1dc..b13b36e6e823 100644
 --- a/mm/memory.c
@@ -38285,18 +38115,6 @@ index 1ddabefcfb5a..ef5860fc7d22 100644
  static DEFINE_SPINLOCK(oom_reaper_lock);
  
  bool __oom_reap_task_mm(struct mm_struct *mm)
-diff --git a/mm/page_alloc.c b/mm/page_alloc.c
-index 5088b189cba8..24c809394d7c 100644
---- a/mm/page_alloc.c
-+++ b/mm/page_alloc.c
-@@ -7454,6 +7454,7 @@ static void __meminit pgdat_init_internals(struct pglist_data *pgdat)
- 
- 	pgdat_page_ext_init(pgdat);
- 	lruvec_init(&pgdat->__lruvec);
-+	lru_gen_init_state(NULL, &pgdat->__lruvec);
- }
- 
- static void __meminit zone_init_internals(struct zone *zone, enum zone_type idx, int nid,
 diff --git a/mm/rmap.c b/mm/rmap.c
 index 163ac4e6bcee..2f023e6c0f82 100644
 --- a/mm/rmap.c
@@ -38322,18 +38140,6 @@ index 163ac4e6bcee..2f023e6c0f82 100644
  			if (ptep_clear_flush_young_notify(vma, address,
  						pvmw.pte)) {
  				/*
-diff --git a/mm/shmem.c b/mm/shmem.c
-index f6b0f53f8a32..94c77bf2140e 100644
---- a/mm/shmem.c
-+++ b/mm/shmem.c
-@@ -4146,6 +4146,7 @@ int shmem_zero_setup(struct vm_area_struct *vma)
- 
- 	return 0;
- }
-+EXPORT_SYMBOL_GPL(shmem_zero_setup);
- 
- /**
-  * shmem_read_mapping_page_gfp - read into page cache, using specified page allocation flags.
 diff --git a/mm/swap.c b/mm/swap.c
 index 3b955d867427..38117a8d1021 100644
 --- a/mm/swap.c
@@ -41792,7 +41598,7 @@ index 63cb953bd019..0d4fa04a4e29 100644
  	tristate "REDIRECT target support"
  	depends on NETFILTER_ADVANCED
 diff --git a/net/ipv4/tcp.c b/net/ipv4/tcp.c
-index 28abb0bb1c51..74bc089da264 100644
+index 28abb0bb1c51..32b764ab8fcb 100644
 --- a/net/ipv4/tcp.c
 +++ b/net/ipv4/tcp.c
 @@ -292,7 +292,7 @@ EXPORT_PER_CPU_SYMBOL_GPL(tcp_orphan_count);
@@ -41846,7 +41652,30 @@ index 28abb0bb1c51..74bc089da264 100644
  		       READ_ONCE(tp->urg_seq) == READ_ONCE(tp->copied_seq);
  		break;
  	case SIOCOUTQ:
-@@ -1474,7 +1475,7 @@ static int tcp_recv_urg(struct sock *sk, struct msghdr *msg, int len, int flags)
+@@ -952,6 +953,22 @@ static int tcp_downgrade_zcopy_pure(struct sock *sk, struct sk_buff *skb)
+ 	return 0;
+ }
+ 
++/* skb changing from pure zc to mixed, must charge zc */
++static int tcp_downgrade_zcopy_pure(struct sock *sk, struct sk_buff *skb)
++{
++	if (unlikely(skb_zcopy_pure(skb))) {
++		u32 extra = skb->truesize -
++			    SKB_TRUESIZE(skb_end_offset(skb));
++
++		if (!sk_wmem_schedule(sk, extra))
++			return -ENOMEM;
++
++		sk_mem_charge(sk, extra);
++		skb_shinfo(skb)->flags &= ~SKBFL_PURE_ZEROCOPY;
++	}
++	return 0;
++}
++
+ static struct sk_buff *tcp_build_frag(struct sock *sk, int size_goal, int flags,
+ 				      struct page *page, int offset, size_t *size)
+ {
+@@ -1474,7 +1491,7 @@ static int tcp_recv_urg(struct sock *sk, struct msghdr *msg, int len, int flags)
  		char c = tp->urg_data;
  
  		if (!(flags & MSG_PEEK))
@@ -41855,7 +41684,7 @@ index 28abb0bb1c51..74bc089da264 100644
  
  		/* Read urgent data. */
  		msg->msg_flags |= MSG_OOB;
-@@ -1588,6 +1589,36 @@ void tcp_cleanup_rbuf(struct sock *sk, int copied)
+@@ -1588,6 +1605,36 @@ void tcp_cleanup_rbuf(struct sock *sk, int copied)
  		tcp_send_ack(sk);
  }
  
@@ -41892,7 +41721,7 @@ index 28abb0bb1c51..74bc089da264 100644
  static struct sk_buff *tcp_recv_skb(struct sock *sk, u32 seq, u32 *off)
  {
  	struct sk_buff *skb;
-@@ -1607,7 +1638,7 @@ static struct sk_buff *tcp_recv_skb(struct sock *sk, u32 seq, u32 *off)
+@@ -1607,7 +1654,7 @@ static struct sk_buff *tcp_recv_skb(struct sock *sk, u32 seq, u32 *off)
  		 * splitted a fat GRO packet, while we released socket lock
  		 * in skb_splice_bits()
  		 */
@@ -41901,7 +41730,7 @@ index 28abb0bb1c51..74bc089da264 100644
  	}
  	return NULL;
  }
-@@ -1641,7 +1672,7 @@ int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
+@@ -1641,7 +1688,7 @@ int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
  
  			len = skb->len - offset;
  			/* Stop reading if we hit a patch of urgent data */
@@ -41910,7 +41739,7 @@ index 28abb0bb1c51..74bc089da264 100644
  				u32 urg_offset = tp->urg_seq - seq;
  				if (urg_offset < len)
  					len = urg_offset;
-@@ -1673,11 +1704,11 @@ int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
+@@ -1673,11 +1720,11 @@ int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
  				continue;
  		}
  		if (TCP_SKB_CB(skb)->tcp_flags & TCPHDR_FIN) {
@@ -41924,7 +41753,7 @@ index 28abb0bb1c51..74bc089da264 100644
  		if (!desc->count)
  			break;
  		WRITE_ONCE(tp->copied_seq, seq);
-@@ -2337,7 +2368,7 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
+@@ -2337,7 +2384,7 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
  		u32 offset;
  
  		/* Are we at urgent data? Stop if we have read anything or have SIGURG pending. */
@@ -41933,7 +41762,7 @@ index 28abb0bb1c51..74bc089da264 100644
  			if (copied)
  				break;
  			if (signal_pending(current)) {
-@@ -2380,10 +2411,10 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
+@@ -2380,10 +2427,10 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
  			break;
  
  		if (copied) {
@@ -41946,7 +41775,7 @@ index 28abb0bb1c51..74bc089da264 100644
  			    signal_pending(current))
  				break;
  		} else {
-@@ -2417,13 +2448,12 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
+@@ -2417,13 +2464,12 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
  			}
  		}
  
@@ -41963,7 +41792,7 @@ index 28abb0bb1c51..74bc089da264 100644
  			sk_wait_data(sk, &timeo, last);
  		}
  
-@@ -2443,7 +2473,7 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
+@@ -2443,7 +2489,7 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
  			used = len;
  
  		/* Do we have urgent data here? */
@@ -41972,7 +41801,7 @@ index 28abb0bb1c51..74bc089da264 100644
  			u32 urg_offset = tp->urg_seq - *seq;
  			if (urg_offset < used) {
  				if (!urg_offset) {
-@@ -2477,8 +2507,8 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
+@@ -2477,8 +2523,8 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
  		tcp_rcv_space_adjust(sk);
  
  skip_copy:
@@ -41983,7 +41812,7 @@ index 28abb0bb1c51..74bc089da264 100644
  			tcp_fast_path_check(sk);
  		}
  
-@@ -2493,14 +2523,14 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
+@@ -2493,14 +2539,14 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
  		if (TCP_SKB_CB(skb)->tcp_flags & TCPHDR_FIN)
  			goto found_fin_ok;
  		if (!(flags & MSG_PEEK))
@@ -42000,7 +41829,7 @@ index 28abb0bb1c51..74bc089da264 100644
  		break;
  	} while (len > 0);
  
-@@ -2542,6 +2572,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
+@@ -2542,6 +2588,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
  	ret = tcp_recvmsg_locked(sk, msg, len, nonblock, flags, &tss,
  				 &cmsg_flags);
  	release_sock(sk);
@@ -42008,7 +41837,7 @@ index 28abb0bb1c51..74bc089da264 100644
  
  	if (cmsg_flags && ret >= 0) {
  		if (cmsg_flags & TCP_CMSG_TS)
-@@ -2972,7 +3003,7 @@ int tcp_disconnect(struct sock *sk, int flags)
+@@ -2972,7 +3019,7 @@ int tcp_disconnect(struct sock *sk, int flags)
  	tcp_clear_xmit_timers(sk);
  	__skb_queue_purge(&sk->sk_receive_queue);
  	WRITE_ONCE(tp->copied_seq, tp->rcv_nxt);
@@ -42017,7 +41846,7 @@ index 28abb0bb1c51..74bc089da264 100644
  	tcp_write_queue_purge(sk);
  	tcp_fastopen_active_disable_ofo_check(sk);
  	skb_rbtree_purge(&tp->out_of_order_queue);
-@@ -3052,6 +3083,7 @@ int tcp_disconnect(struct sock *sk, int flags)
+@@ -3052,6 +3099,7 @@ int tcp_disconnect(struct sock *sk, int flags)
  	tp->rx_opt.dsack = 0;
  	tp->rx_opt.num_sacks = 0;
  	tp->rcv_ooopack = 0;
@@ -42025,7 +41854,7 @@ index 28abb0bb1c51..74bc089da264 100644
  
  
  	/* Clean up fastopen related fields */
-@@ -3066,7 +3098,7 @@ int tcp_disconnect(struct sock *sk, int flags)
+@@ -3066,7 +3114,7 @@ int tcp_disconnect(struct sock *sk, int flags)
  		sk->sk_frag.page = NULL;
  		sk->sk_frag.offset = 0;
  	}
@@ -42034,7 +41863,7 @@ index 28abb0bb1c51..74bc089da264 100644
  	sk_error_report(sk);
  	return 0;
  }
-@@ -3781,10 +3813,12 @@ void tcp_get_info(struct sock *sk, struct tcp_info *info)
+@@ -3781,10 +3829,12 @@ void tcp_get_info(struct sock *sk, struct tcp_info *info)
  	tcp_get_info_chrono_stats(tp, info);
  
  	info->tcpi_segs_out = tp->segs_out;
@@ -42049,7 +41878,7 @@ index 28abb0bb1c51..74bc089da264 100644
  	info->tcpi_data_segs_out = tp->data_segs_out;
  
  	info->tcpi_delivery_rate_app_limited = tp->rate_app_limited ? 1 : 0;
-@@ -4193,6 +4227,7 @@ static int do_tcp_getsockopt(struct sock *sk, int level,
+@@ -4193,6 +4243,7 @@ static int do_tcp_getsockopt(struct sock *sk, int level,
  		err = BPF_CGROUP_RUN_PROG_GETSOCKOPT_KERN(sk, level, optname,
  							  &zc, &len, err);
  		release_sock(sk);
@@ -46690,6 +46519,682 @@ index 64abdfb20bc2..6f55c1feca20 100644
  
  int security_ptrace_access_check(struct task_struct *child, unsigned int mode)
  {
+diff --git a/tools/power/cpupower/Makefile b/tools/power/cpupower/Makefile
+index 3b1594447f29..e9b6de314654 100644
+--- a/tools/power/cpupower/Makefile
++++ b/tools/power/cpupower/Makefile
+@@ -143,9 +143,9 @@ UTIL_HEADERS = utils/helpers/helpers.h utils/idle_monitor/cpupower-monitor.h \
+ 	utils/helpers/bitmask.h \
+ 	utils/idle_monitor/idle_monitors.h utils/idle_monitor/idle_monitors.def
+ 
+-LIB_HEADERS = 	lib/cpufreq.h lib/cpupower.h lib/cpuidle.h
+-LIB_SRC = 	lib/cpufreq.c lib/cpupower.c lib/cpuidle.c
+-LIB_OBJS = 	lib/cpufreq.o lib/cpupower.o lib/cpuidle.o
++LIB_HEADERS = 	lib/cpufreq.h lib/cpupower.h lib/cpuidle.h lib/acpi_cppc.h
++LIB_SRC = 	lib/cpufreq.c lib/cpupower.c lib/cpuidle.c lib/acpi_cppc.c
++LIB_OBJS = 	lib/cpufreq.o lib/cpupower.o lib/cpuidle.o lib/acpi_cppc.o
+ LIB_OBJS :=	$(addprefix $(OUTPUT),$(LIB_OBJS))
+ 
+ override CFLAGS +=	-pipe
+diff --git a/tools/power/cpupower/lib/acpi_cppc.c b/tools/power/cpupower/lib/acpi_cppc.c
+new file mode 100644
+index 000000000000..c401ac331e9f
+--- /dev/null
++++ b/tools/power/cpupower/lib/acpi_cppc.c
+@@ -0,0 +1,59 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++#include <stdio.h>
++#include <errno.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <unistd.h>
++
++#include "cpupower_intern.h"
++#include "acpi_cppc.h"
++
++/* ACPI CPPC sysfs access ***********************************************/
++
++static int acpi_cppc_read_file(unsigned int cpu, const char *fname,
++			       char *buf, size_t buflen)
++{
++	char path[SYSFS_PATH_MAX];
++
++	snprintf(path, sizeof(path), PATH_TO_CPU "cpu%u/acpi_cppc/%s",
++		 cpu, fname);
++	return cpupower_read_sysfs(path, buf, buflen);
++}
++
++static const char * const acpi_cppc_value_files[] = {
++	[HIGHEST_PERF] = "highest_perf",
++	[LOWEST_PERF] = "lowest_perf",
++	[NOMINAL_PERF] = "nominal_perf",
++	[LOWEST_NONLINEAR_PERF] = "lowest_nonlinear_perf",
++	[LOWEST_FREQ] = "lowest_freq",
++	[NOMINAL_FREQ] = "nominal_freq",
++	[REFERENCE_PERF] = "reference_perf",
++	[WRAPAROUND_TIME] = "wraparound_time"
++};
++
++unsigned long acpi_cppc_get_data(unsigned int cpu, enum acpi_cppc_value which)
++{
++	unsigned long long value;
++	unsigned int len;
++	char linebuf[MAX_LINE_LEN];
++	char *endp;
++
++	if (which >= MAX_CPPC_VALUE_FILES)
++		return 0;
++
++	len = acpi_cppc_read_file(cpu, acpi_cppc_value_files[which],
++				  linebuf, sizeof(linebuf));
++	if (len == 0)
++		return 0;
++
++	value = strtoull(linebuf, &endp, 0);
++
++	if (endp == linebuf || errno == ERANGE)
++		return 0;
++
++	return value;
++}
+diff --git a/tools/power/cpupower/lib/acpi_cppc.h b/tools/power/cpupower/lib/acpi_cppc.h
+new file mode 100644
+index 000000000000..85ca83080316
+--- /dev/null
++++ b/tools/power/cpupower/lib/acpi_cppc.h
+@@ -0,0 +1,21 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#ifndef __ACPI_CPPC_H__
++#define __ACPI_CPPC_H__
++
++enum acpi_cppc_value {
++	HIGHEST_PERF,
++	LOWEST_PERF,
++	NOMINAL_PERF,
++	LOWEST_NONLINEAR_PERF,
++	LOWEST_FREQ,
++	NOMINAL_FREQ,
++	REFERENCE_PERF,
++	WRAPAROUND_TIME,
++	MAX_CPPC_VALUE_FILES
++};
++
++unsigned long acpi_cppc_get_data(unsigned int cpu,
++				 enum acpi_cppc_value which);
++
++#endif /* _ACPI_CPPC_H */
+diff --git a/tools/power/cpupower/lib/cpufreq.c b/tools/power/cpupower/lib/cpufreq.c
+index c3b56db8b921..1516d23c17c9 100644
+--- a/tools/power/cpupower/lib/cpufreq.c
++++ b/tools/power/cpupower/lib/cpufreq.c
+@@ -83,20 +83,21 @@ static const char *cpufreq_value_files[MAX_CPUFREQ_VALUE_READ_FILES] = {
+ 	[STATS_NUM_TRANSITIONS] = "stats/total_trans"
+ };
+ 
+-
+-static unsigned long sysfs_cpufreq_get_one_value(unsigned int cpu,
+-						 enum cpufreq_value which)
++unsigned long cpufreq_get_sysfs_value_from_table(unsigned int cpu,
++						 const char **table,
++						 unsigned int index,
++						 unsigned int size)
+ {
+ 	unsigned long value;
+ 	unsigned int len;
+ 	char linebuf[MAX_LINE_LEN];
+ 	char *endp;
+ 
+-	if (which >= MAX_CPUFREQ_VALUE_READ_FILES)
++	if (!table || index >= size || !table[index])
+ 		return 0;
+ 
+-	len = sysfs_cpufreq_read_file(cpu, cpufreq_value_files[which],
+-				linebuf, sizeof(linebuf));
++	len = sysfs_cpufreq_read_file(cpu, table[index], linebuf,
++				      sizeof(linebuf));
+ 
+ 	if (len == 0)
+ 		return 0;
+@@ -109,6 +110,14 @@ static unsigned long sysfs_cpufreq_get_one_value(unsigned int cpu,
+ 	return value;
+ }
+ 
++static unsigned long sysfs_cpufreq_get_one_value(unsigned int cpu,
++						 enum cpufreq_value which)
++{
++	return cpufreq_get_sysfs_value_from_table(cpu, cpufreq_value_files,
++						  which,
++						  MAX_CPUFREQ_VALUE_READ_FILES);
++}
++
+ /* read access to files which contain one string */
+ 
+ enum cpufreq_string {
+@@ -124,7 +133,7 @@ static const char *cpufreq_string_files[MAX_CPUFREQ_STRING_FILES] = {
+ 
+ 
+ static char *sysfs_cpufreq_get_one_string(unsigned int cpu,
+-					   enum cpufreq_string which)
++					  enum cpufreq_string which)
+ {
+ 	char linebuf[MAX_LINE_LEN];
+ 	char *result;
+diff --git a/tools/power/cpupower/lib/cpufreq.h b/tools/power/cpupower/lib/cpufreq.h
+index 95f4fd9e2656..2f3c84035806 100644
+--- a/tools/power/cpupower/lib/cpufreq.h
++++ b/tools/power/cpupower/lib/cpufreq.h
+@@ -203,6 +203,18 @@ int cpufreq_modify_policy_governor(unsigned int cpu, char *governor);
+ int cpufreq_set_frequency(unsigned int cpu,
+ 				unsigned long target_frequency);
+ 
++/*
++ * get the sysfs value from specific table
++ *
++ * Read the value with the sysfs file name from specific table. Does
++ * only work if the cpufreq driver has the specific sysfs interfaces.
++ */
++
++unsigned long cpufreq_get_sysfs_value_from_table(unsigned int cpu,
++						 const char **table,
++						 unsigned int index,
++						 unsigned int size);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/tools/power/cpupower/man/cpupower-frequency-info.1 b/tools/power/cpupower/man/cpupower-frequency-info.1
+index 6aa8d239dff9..dd545b499480 100644
+--- a/tools/power/cpupower/man/cpupower-frequency-info.1
++++ b/tools/power/cpupower/man/cpupower-frequency-info.1
+@@ -53,6 +53,9 @@ human\-readable output for the \-f, \-w, \-s and \-y parameters.
+ \fB\-n\fR \fB\-\-no-rounding\fR
+ Output frequencies and latencies without rounding off values.
+ .TP  
++\fB\-c\fR \fB\-\-perf\fR
++Get performances and frequencies capabilities of CPPC, by reading it from hardware (only available on the hardware with CPPC).
++.TP
+ .SH "REMARKS"
+ .LP 
+ By default only values of core zero are displayed. How to display settings of
+diff --git a/tools/power/cpupower/utils/cpufreq-info.c b/tools/power/cpupower/utils/cpufreq-info.c
+index f9895e31ff5a..0646f615fe2d 100644
+--- a/tools/power/cpupower/utils/cpufreq-info.c
++++ b/tools/power/cpupower/utils/cpufreq-info.c
+@@ -84,43 +84,6 @@ static void proc_cpufreq_output(void)
+ }
+ 
+ static int no_rounding;
+-static void print_speed(unsigned long speed)
+-{
+-	unsigned long tmp;
+-
+-	if (no_rounding) {
+-		if (speed > 1000000)
+-			printf("%u.%06u GHz", ((unsigned int) speed/1000000),
+-				((unsigned int) speed%1000000));
+-		else if (speed > 1000)
+-			printf("%u.%03u MHz", ((unsigned int) speed/1000),
+-				(unsigned int) (speed%1000));
+-		else
+-			printf("%lu kHz", speed);
+-	} else {
+-		if (speed > 1000000) {
+-			tmp = speed%10000;
+-			if (tmp >= 5000)
+-				speed += 10000;
+-			printf("%u.%02u GHz", ((unsigned int) speed/1000000),
+-				((unsigned int) (speed%1000000)/10000));
+-		} else if (speed > 100000) {
+-			tmp = speed%1000;
+-			if (tmp >= 500)
+-				speed += 1000;
+-			printf("%u MHz", ((unsigned int) speed/1000));
+-		} else if (speed > 1000) {
+-			tmp = speed%100;
+-			if (tmp >= 50)
+-				speed += 100;
+-			printf("%u.%01u MHz", ((unsigned int) speed/1000),
+-				((unsigned int) (speed%1000)/100));
+-		}
+-	}
+-
+-	return;
+-}
+-
+ static void print_duration(unsigned long duration)
+ {
+ 	unsigned long tmp;
+@@ -183,9 +146,12 @@ static int get_boost_mode_x86(unsigned int cpu)
+ 	printf(_("    Supported: %s\n"), support ? _("yes") : _("no"));
+ 	printf(_("    Active: %s\n"), active ? _("yes") : _("no"));
+ 
+-	if ((cpupower_cpu_info.vendor == X86_VENDOR_AMD &&
+-	     cpupower_cpu_info.family >= 0x10) ||
+-	     cpupower_cpu_info.vendor == X86_VENDOR_HYGON) {
++	if (cpupower_cpu_info.vendor == X86_VENDOR_AMD &&
++	    cpupower_cpu_info.caps & CPUPOWER_CAP_AMD_PSTATE) {
++		return 0;
++	} else if ((cpupower_cpu_info.vendor == X86_VENDOR_AMD &&
++		    cpupower_cpu_info.family >= 0x10) ||
++		   cpupower_cpu_info.vendor == X86_VENDOR_HYGON) {
+ 		ret = decode_pstates(cpu, b_states, pstates, &pstate_no);
+ 		if (ret)
+ 			return ret;
+@@ -254,11 +220,11 @@ static int get_boost_mode(unsigned int cpu)
+ 	if (freqs) {
+ 		printf(_("  boost frequency steps: "));
+ 		while (freqs->next) {
+-			print_speed(freqs->frequency);
++			print_speed(freqs->frequency, no_rounding);
+ 			printf(", ");
+ 			freqs = freqs->next;
+ 		}
+-		print_speed(freqs->frequency);
++		print_speed(freqs->frequency, no_rounding);
+ 		printf("\n");
+ 		cpufreq_put_available_frequencies(freqs);
+ 	}
+@@ -277,7 +243,7 @@ static int get_freq_kernel(unsigned int cpu, unsigned int human)
+ 		return -EINVAL;
+ 	}
+ 	if (human) {
+-		print_speed(freq);
++		print_speed(freq, no_rounding);
+ 	} else
+ 		printf("%lu", freq);
+ 	printf(_(" (asserted by call to kernel)\n"));
+@@ -296,7 +262,7 @@ static int get_freq_hardware(unsigned int cpu, unsigned int human)
+ 		return -EINVAL;
+ 	}
+ 	if (human) {
+-		print_speed(freq);
++		print_speed(freq, no_rounding);
+ 	} else
+ 		printf("%lu", freq);
+ 	printf(_(" (asserted by call to hardware)\n"));
+@@ -316,9 +282,9 @@ static int get_hardware_limits(unsigned int cpu, unsigned int human)
+ 
+ 	if (human) {
+ 		printf(_("  hardware limits: "));
+-		print_speed(min);
++		print_speed(min, no_rounding);
+ 		printf(" - ");
+-		print_speed(max);
++		print_speed(max, no_rounding);
+ 		printf("\n");
+ 	} else {
+ 		printf("%lu %lu\n", min, max);
+@@ -350,9 +316,9 @@ static int get_policy(unsigned int cpu)
+ 		return -EINVAL;
+ 	}
+ 	printf(_("  current policy: frequency should be within "));
+-	print_speed(policy->min);
++	print_speed(policy->min, no_rounding);
+ 	printf(_(" and "));
+-	print_speed(policy->max);
++	print_speed(policy->max, no_rounding);
+ 
+ 	printf(".\n                  ");
+ 	printf(_("The governor \"%s\" may decide which speed to use\n"
+@@ -436,7 +402,7 @@ static int get_freq_stats(unsigned int cpu, unsigned int human)
+ 	struct cpufreq_stats *stats = cpufreq_get_stats(cpu, &total_time);
+ 	while (stats) {
+ 		if (human) {
+-			print_speed(stats->frequency);
++			print_speed(stats->frequency, no_rounding);
+ 			printf(":%.2f%%",
+ 				(100.0 * stats->time_in_state) / total_time);
+ 		} else
+@@ -472,6 +438,17 @@ static int get_latency(unsigned int cpu, unsigned int human)
+ 	return 0;
+ }
+ 
++/* --performance / -c */
++
++static int get_perf_cap(unsigned int cpu)
++{
++	if (cpupower_cpu_info.vendor == X86_VENDOR_AMD &&
++	    cpupower_cpu_info.caps & CPUPOWER_CAP_AMD_PSTATE)
++		amd_pstate_show_perf_and_freq(cpu, no_rounding);
++
++	return 0;
++}
++
+ static void debug_output_one(unsigned int cpu)
+ {
+ 	struct cpufreq_available_frequencies *freqs;
+@@ -486,11 +463,11 @@ static void debug_output_one(unsigned int cpu)
+ 	if (freqs) {
+ 		printf(_("  available frequency steps:  "));
+ 		while (freqs->next) {
+-			print_speed(freqs->frequency);
++			print_speed(freqs->frequency, no_rounding);
+ 			printf(", ");
+ 			freqs = freqs->next;
+ 		}
+-		print_speed(freqs->frequency);
++		print_speed(freqs->frequency, no_rounding);
+ 		printf("\n");
+ 		cpufreq_put_available_frequencies(freqs);
+ 	}
+@@ -500,6 +477,7 @@ static void debug_output_one(unsigned int cpu)
+ 	if (get_freq_hardware(cpu, 1) < 0)
+ 		get_freq_kernel(cpu, 1);
+ 	get_boost_mode(cpu);
++	get_perf_cap(cpu);
+ }
+ 
+ static struct option info_opts[] = {
+@@ -518,6 +496,7 @@ static struct option info_opts[] = {
+ 	{"proc",	 no_argument,		 NULL,	 'o'},
+ 	{"human",	 no_argument,		 NULL,	 'm'},
+ 	{"no-rounding", no_argument,	 NULL,	 'n'},
++	{"performance", no_argument,	 NULL,	 'c'},
+ 	{ },
+ };
+ 
+@@ -531,7 +510,7 @@ int cmd_freq_info(int argc, char **argv)
+ 	int output_param = 0;
+ 
+ 	do {
+-		ret = getopt_long(argc, argv, "oefwldpgrasmybn", info_opts,
++		ret = getopt_long(argc, argv, "oefwldpgrasmybnc", info_opts,
+ 				  NULL);
+ 		switch (ret) {
+ 		case '?':
+@@ -554,6 +533,7 @@ int cmd_freq_info(int argc, char **argv)
+ 		case 'e':
+ 		case 's':
+ 		case 'y':
++		case 'c':
+ 			if (output_param) {
+ 				output_param = -1;
+ 				cont = 0;
+@@ -660,6 +640,9 @@ int cmd_freq_info(int argc, char **argv)
+ 		case 'y':
+ 			ret = get_latency(cpu, human);
+ 			break;
++		case 'c':
++			ret = get_perf_cap(cpu);
++			break;
+ 		}
+ 		if (ret)
+ 			return ret;
+diff --git a/tools/power/cpupower/utils/helpers/amd.c b/tools/power/cpupower/utils/helpers/amd.c
+index 97f2c857048e..c519cc89c97f 100644
+--- a/tools/power/cpupower/utils/helpers/amd.c
++++ b/tools/power/cpupower/utils/helpers/amd.c
+@@ -8,7 +8,10 @@
+ #include <pci/pci.h>
+ 
+ #include "helpers/helpers.h"
++#include "cpufreq.h"
++#include "acpi_cppc.h"
+ 
++/* ACPI P-States Helper Functions for AMD Processors ***************/
+ #define MSR_AMD_PSTATE_STATUS	0xc0010063
+ #define MSR_AMD_PSTATE		0xc0010064
+ #define MSR_AMD_PSTATE_LIMIT	0xc0010061
+@@ -146,4 +149,78 @@ int amd_pci_get_num_boost_states(int *active, int *states)
+ 	pci_cleanup(pci_acc);
+ 	return 0;
+ }
++
++/* ACPI P-States Helper Functions for AMD Processors ***************/
++
++/* AMD P-State Helper Functions ************************************/
++enum amd_pstate_value {
++	AMD_PSTATE_HIGHEST_PERF,
++	AMD_PSTATE_MAX_FREQ,
++	AMD_PSTATE_LOWEST_NONLINEAR_FREQ,
++	MAX_AMD_PSTATE_VALUE_READ_FILES,
++};
++
++static const char *amd_pstate_value_files[MAX_AMD_PSTATE_VALUE_READ_FILES] = {
++	[AMD_PSTATE_HIGHEST_PERF] = "amd_pstate_highest_perf",
++	[AMD_PSTATE_MAX_FREQ] = "amd_pstate_max_freq",
++	[AMD_PSTATE_LOWEST_NONLINEAR_FREQ] = "amd_pstate_lowest_nonlinear_freq",
++};
++
++static unsigned long amd_pstate_get_data(unsigned int cpu,
++					 enum amd_pstate_value value)
++{
++	return cpufreq_get_sysfs_value_from_table(cpu,
++						  amd_pstate_value_files,
++						  value,
++						  MAX_AMD_PSTATE_VALUE_READ_FILES);
++}
++
++void amd_pstate_boost_init(unsigned int cpu, int *support, int *active)
++{
++	unsigned long highest_perf, nominal_perf, cpuinfo_min,
++		      cpuinfo_max, amd_pstate_max;
++
++	highest_perf = amd_pstate_get_data(cpu, AMD_PSTATE_HIGHEST_PERF);
++	nominal_perf = acpi_cppc_get_data(cpu, NOMINAL_PERF);
++
++	*support = highest_perf > nominal_perf ? 1 : 0;
++	if (!(*support))
++		return;
++
++	cpufreq_get_hardware_limits(cpu, &cpuinfo_min, &cpuinfo_max);
++	amd_pstate_max = amd_pstate_get_data(cpu, AMD_PSTATE_MAX_FREQ);
++
++	*active = cpuinfo_max == amd_pstate_max ? 1 : 0;
++}
++
++void amd_pstate_show_perf_and_freq(unsigned int cpu, int no_rounding)
++{
++	printf(_("    AMD PSTATE Highest Performance: %lu. Maximum Frequency: "),
++	       amd_pstate_get_data(cpu, AMD_PSTATE_HIGHEST_PERF));
++	/*
++	 * If boost isn't active, the cpuinfo_max doesn't indicate real max
++	 * frequency. So we read it back from amd-pstate sysfs entry.
++	 */
++	print_speed(amd_pstate_get_data(cpu, AMD_PSTATE_MAX_FREQ), no_rounding);
++	printf(".\n");
++
++	printf(_("    AMD PSTATE Nominal Performance: %lu. Nominal Frequency: "),
++	       acpi_cppc_get_data(cpu, NOMINAL_PERF));
++	print_speed(acpi_cppc_get_data(cpu, NOMINAL_FREQ) * 1000,
++		    no_rounding);
++	printf(".\n");
++
++	printf(_("    AMD PSTATE Lowest Non-linear Performance: %lu. Lowest Non-linear Frequency: "),
++	       acpi_cppc_get_data(cpu, LOWEST_NONLINEAR_PERF));
++	print_speed(amd_pstate_get_data(cpu, AMD_PSTATE_LOWEST_NONLINEAR_FREQ),
++		    no_rounding);
++	printf(".\n");
++
++	printf(_("    AMD PSTATE Lowest Performance: %lu. Lowest Frequency: "),
++	       acpi_cppc_get_data(cpu, LOWEST_PERF));
++	print_speed(acpi_cppc_get_data(cpu, LOWEST_FREQ) * 1000, no_rounding);
++	printf(".\n");
++}
++
++/* AMD P-State Helper Functions ************************************/
+ #endif /* defined(__i386__) || defined(__x86_64__) */
+diff --git a/tools/power/cpupower/utils/helpers/cpuid.c b/tools/power/cpupower/utils/helpers/cpuid.c
+index 72eb43593180..eae91f11d187 100644
+--- a/tools/power/cpupower/utils/helpers/cpuid.c
++++ b/tools/power/cpupower/utils/helpers/cpuid.c
+@@ -149,6 +149,19 @@ int get_cpu_info(struct cpupower_cpu_info *cpu_info)
+ 		if (ext_cpuid_level >= 0x80000008 &&
+ 		    cpuid_ebx(0x80000008) & (1 << 4))
+ 			cpu_info->caps |= CPUPOWER_CAP_AMD_RDPRU;
++
++		if (cpupower_amd_pstate_enabled()) {
++			cpu_info->caps |= CPUPOWER_CAP_AMD_PSTATE;
++
++			/*
++			 * If AMD P-State is enabled, the firmware will treat
++			 * AMD P-State function as high priority.
++			 */
++			cpu_info->caps &= ~CPUPOWER_CAP_AMD_CPB;
++			cpu_info->caps &= ~CPUPOWER_CAP_AMD_CPB_MSR;
++			cpu_info->caps &= ~CPUPOWER_CAP_AMD_HW_PSTATE;
++			cpu_info->caps &= ~CPUPOWER_CAP_AMD_PSTATEDEF;
++		}
+ 	}
+ 
+ 	if (cpu_info->vendor == X86_VENDOR_INTEL) {
+diff --git a/tools/power/cpupower/utils/helpers/helpers.h b/tools/power/cpupower/utils/helpers/helpers.h
+index 33ffacee7fcb..96e4bede078b 100644
+--- a/tools/power/cpupower/utils/helpers/helpers.h
++++ b/tools/power/cpupower/utils/helpers/helpers.h
+@@ -11,6 +11,7 @@
+ 
+ #include <libintl.h>
+ #include <locale.h>
++#include <stdbool.h>
+ 
+ #include "helpers/bitmask.h"
+ #include <cpupower.h>
+@@ -73,6 +74,7 @@ enum cpupower_cpu_vendor {X86_VENDOR_UNKNOWN = 0, X86_VENDOR_INTEL,
+ #define CPUPOWER_CAP_AMD_HW_PSTATE	0x00000100
+ #define CPUPOWER_CAP_AMD_PSTATEDEF	0x00000200
+ #define CPUPOWER_CAP_AMD_CPB_MSR	0x00000400
++#define CPUPOWER_CAP_AMD_PSTATE		0x00000800
+ 
+ #define CPUPOWER_AMD_CPBDIS		0x02000000
+ 
+@@ -135,6 +137,16 @@ extern int decode_pstates(unsigned int cpu, int boost_states,
+ 
+ extern int cpufreq_has_boost_support(unsigned int cpu, int *support,
+ 				     int *active, int * states);
++
++/* AMD P-State stuff **************************/
++bool cpupower_amd_pstate_enabled(void);
++void amd_pstate_boost_init(unsigned int cpu,
++			   int *support, int *active);
++void amd_pstate_show_perf_and_freq(unsigned int cpu,
++				   int no_rounding);
++
++/* AMD P-State stuff **************************/
++
+ /*
+  * CPUID functions returning a single datum
+  */
+@@ -167,6 +179,15 @@ static inline int cpufreq_has_boost_support(unsigned int cpu, int *support,
+ 					    int *active, int * states)
+ { return -1; }
+ 
++static inline bool cpupower_amd_pstate_enabled(void)
++{ return false; }
++static inline void amd_pstate_boost_init(unsigned int cpu, int *support,
++					 int *active)
++{}
++static inline void amd_pstate_show_perf_and_freq(unsigned int cpu,
++						 int no_rounding)
++{}
++
+ /* cpuid and cpuinfo helpers  **************************/
+ 
+ static inline unsigned int cpuid_eax(unsigned int op) { return 0; };
+@@ -184,5 +205,6 @@ extern struct bitmask *offline_cpus;
+ void get_cpustate(void);
+ void print_online_cpus(void);
+ void print_offline_cpus(void);
++void print_speed(unsigned long speed, int no_rounding);
+ 
+ #endif /* __CPUPOWERUTILS_HELPERS__ */
+diff --git a/tools/power/cpupower/utils/helpers/misc.c b/tools/power/cpupower/utils/helpers/misc.c
+index fc6e34511721..9547b29254a7 100644
+--- a/tools/power/cpupower/utils/helpers/misc.c
++++ b/tools/power/cpupower/utils/helpers/misc.c
+@@ -3,9 +3,11 @@
+ #include <stdio.h>
+ #include <errno.h>
+ #include <stdlib.h>
++#include <string.h>
+ 
+ #include "helpers/helpers.h"
+ #include "helpers/sysfs.h"
++#include "cpufreq.h"
+ 
+ #if defined(__i386__) || defined(__x86_64__)
+ 
+@@ -39,6 +41,8 @@ int cpufreq_has_boost_support(unsigned int cpu, int *support, int *active,
+ 			if (ret)
+ 				return ret;
+ 		}
++	} else if (cpupower_cpu_info.caps & CPUPOWER_CAP_AMD_PSTATE) {
++		amd_pstate_boost_init(cpu, support, active);
+ 	} else if (cpupower_cpu_info.caps & CPUPOWER_CAP_INTEL_IDA)
+ 		*support = *active = 1;
+ 	return 0;
+@@ -83,6 +87,22 @@ int cpupower_intel_set_perf_bias(unsigned int cpu, unsigned int val)
+ 	return 0;
+ }
+ 
++bool cpupower_amd_pstate_enabled(void)
++{
++	char *driver = cpufreq_get_driver(0);
++	bool ret = false;
++
++	if (!driver)
++		return ret;
++
++	if (!strcmp(driver, "amd-pstate"))
++		ret = true;
++
++	cpufreq_put_driver(driver);
++
++	return ret;
++}
++
+ #endif /* #if defined(__i386__) || defined(__x86_64__) */
+ 
+ /* get_cpustate
+@@ -144,3 +164,43 @@ void print_offline_cpus(void)
+ 		printf(_("cpupower set operation was not performed on them\n"));
+ 	}
+ }
++
++/*
++ * print_speed
++ *
++ * Print the exact CPU frequency with appropriate unit
++ */
++void print_speed(unsigned long speed, int no_rounding)
++{
++	unsigned long tmp;
++
++	if (no_rounding) {
++		if (speed > 1000000)
++			printf("%u.%06u GHz", ((unsigned int)speed / 1000000),
++			       ((unsigned int)speed % 1000000));
++		else if (speed > 1000)
++			printf("%u.%03u MHz", ((unsigned int)speed / 1000),
++			       (unsigned int)(speed % 1000));
++		else
++			printf("%lu kHz", speed);
++	} else {
++		if (speed > 1000000) {
++			tmp = speed % 10000;
++			if (tmp >= 5000)
++				speed += 10000;
++			printf("%u.%02u GHz", ((unsigned int)speed / 1000000),
++			       ((unsigned int)(speed % 1000000) / 10000));
++		} else if (speed > 100000) {
++			tmp = speed % 1000;
++			if (tmp >= 500)
++				speed += 1000;
++			printf("%u MHz", ((unsigned int)speed / 1000));
++		} else if (speed > 1000) {
++			tmp = speed % 100;
++			if (tmp >= 50)
++				speed += 100;
++			printf("%u.%01u MHz", ((unsigned int)speed / 1000),
++			       ((unsigned int)(speed % 1000) / 100));
++		}
++	}
++}
 diff --git a/tools/testing/selftests/Makefile b/tools/testing/selftests/Makefile
 index c852eb40c4f7..a366016d6254 100644
 --- a/tools/testing/selftests/Makefile
@@ -48215,3 +48720,56 @@ index 000000000000..52373fcd5c8c
 +}
 +
 +TEST_HARNESS_MAIN
+diff --git a/tools/testing/selftests/vm/hmm-tests.c b/tools/testing/selftests/vm/hmm-tests.c
+index 203323967b50..cfac7a53e879 100644
+--- a/tools/testing/selftests/vm/hmm-tests.c
++++ b/tools/testing/selftests/vm/hmm-tests.c
+@@ -1290,6 +1290,48 @@ TEST_F(hmm, mixedmap)
+ 	hmm_buffer_free(buffer);
+ }
+ 
++/*
++ * Test memory snapshot without faulting in pages accessed by the device.
++ */
++TEST_F(hmm, mixedmap)
++{
++	struct hmm_buffer *buffer;
++	unsigned long npages;
++	unsigned long size;
++	unsigned char *m;
++	int ret;
++
++	npages = 1;
++	size = npages << self->page_shift;
++
++	buffer = malloc(sizeof(*buffer));
++	ASSERT_NE(buffer, NULL);
++
++	buffer->fd = -1;
++	buffer->size = size;
++	buffer->mirror = malloc(npages);
++	ASSERT_NE(buffer->mirror, NULL);
++
++
++	/* Reserve a range of addresses. */
++	buffer->ptr = mmap(NULL, size,
++			   PROT_READ | PROT_WRITE,
++			   MAP_PRIVATE,
++			   self->fd, 0);
++	ASSERT_NE(buffer->ptr, MAP_FAILED);
++
++	/* Simulate a device snapshotting CPU pagetables. */
++	ret = hmm_dmirror_cmd(self->fd, HMM_DMIRROR_SNAPSHOT, buffer, npages);
++	ASSERT_EQ(ret, 0);
++	ASSERT_EQ(buffer->cpages, npages);
++
++	/* Check what the device saw. */
++	m = buffer->mirror;
++	ASSERT_EQ(m[0], HMM_DMIRROR_PROT_READ);
++
++	hmm_buffer_free(buffer);
++}
++
+ /*
+  * Test memory snapshot without faulting in pages accessed by the device.
+  */
