@@ -62,7 +62,7 @@ validpgpkeys=(
   'E240B57E2C4630BA768E2F26FC1B547C8D8172C8'  # Levente Polyak
 )
 sha256sums=('SKIP'
-            '924cfe3bd96dd7eca2d6f9c7be7e3c1adf7ad63e2b1c079dc1272dcea095b6e0'
+            'b4e9c35c7ff5c5a7f61b60899cfb792794ec677a5a7c413261bbca0191cb3455'
             '278118011d7a2eeca9971ac97b31bf0c55ab55e99c662ab9ae4717b55819c9a2'
             '0eb2abe265702256c83858a8c27531d07226d71f24dd6ad66ecd9a095547bd4f'
             '97fcda12d597a98578a0a4421f0819a7a757888fe86a291d4dd10dc567333b16'
