@@ -31,10 +31,10 @@
 # More at this wiki page ---> https://wiki.archlinux.org/index.php/Modprobed-db
 : "${_localmodcfg:=n}"
 
-pkgbase=linux-hardened-xanmod-tt-rog
+pkgbase=linux-drm-next-git
 _srcname=${pkgbase/-git/}
-_gitbranch=5.16
-pkgver=5.16.11.r1060404.gb7a9f15bc280
+_gitbranch=drm-next-5.18
+pkgver=5.18.
 pkgrel=1
 pkgdesc='Security-Hardened Linux with Xanmod, TT Sched, and ROG patches'
 url='https://github.com/anthraxx/linux-hardened'
@@ -47,14 +47,9 @@ makedepends=(
 )
 options=('!strip')
 source=(
-  "${_srcname}::git+https://github.com/anthraxx/linux-hardened#branch=${_gitbranch}?signed"
+  "${_srcname}::git+https://gitlab.freedesktop.org/agd5f/linux.git#branch=${_gitbranch}"
   config # the main kernel config files
   choose-gcc-optimization.sh
-  linux-5.16.11.patch
-  xanmod.patch # Xanmod patch
-  tt.patch
-  fix-tt-build.patch
-  rog.patch
 )
 validpgpkeys=(
   'ABAF11C65A2970B130ABE3C479BE3E4300411886'  # Linus Torvalds
@@ -64,11 +59,6 @@ validpgpkeys=(
 sha256sums=('SKIP'
             'ff856e1527b9df7cb84ac0ce70d4b38b22b5302585a1dccbc71f171157ffc019'
             '278118011d7a2eeca9971ac97b31bf0c55ab55e99c662ab9ae4717b55819c9a2'
-            '0eb2abe265702256c83858a8c27531d07226d71f24dd6ad66ecd9a095547bd4f'
-            'dd273987755a96f1a7496782a014d54183748bf20b06b3c0d7011fb21938b2e4'
-            '97e06b4bd2816a626289eb29052fd0d88146dca64238edfb4b571f76c99496bc'
-            '26a74fbbda76e7765761a8437325626cf4b2fcdc231380b6af57866ed071c7a4'
-            '2571beb0de1faf37ced56aed78d5efeea95cf6e11b3856eec49ee375e5307eb4'
 )
 
 export KBUILD_BUILD_HOST=archlinux
@@ -89,6 +79,7 @@ pkgver() {
 prepare() {
   cd $_srcname
 
+  git checkout ${_gitbranch}
   msg2 "Setting version..."
   rm -f localversion* include/config/kernel.release
   scripts/setlocalversion --save-scmversion
@@ -256,13 +247,13 @@ _package-headers() {
   ln -sr "$builddir" "$pkgdir/usr/src/$pkgbase"
 }
 
-pkgname=(linux-hardened-xanmod-tt-rog-git linux-hardened-xanmod-tt-rog-headers-git)
+pkgname=(linux-drm-next-git linux-drm-next-git)
 for _p in "${pkgname[@]}"; do
   _p=${_p/-git/}
   eval "package_$_p-git() {
     provides=(${_p})
-    $(declare -f "_package${_p#linux-hardened-xanmod-tt-rog}")
-    _package${_p#linux-hardened-xanmod-tt-rog}
+    $(declare -f "_package${_p#linux-drm-next}")
+    _package${_p#linux-drm-next}
   }"
 done
 
